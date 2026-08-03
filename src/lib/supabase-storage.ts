@@ -11,20 +11,17 @@ function getClient() {
   return client;
 }
 
-export async function uploadSubmissionPhoto(
-  businessSlug: string,
-  filename: string,
-  bytes: Buffer,
-  contentType: string,
-): Promise<string> {
+// Vercel Functions cap request bodies at 4.5MB, well under a typical phone photo.
+// The browser uploads directly to Supabase Storage using this signed URL, bypassing
+// our function entirely; the server never receives the raw file bytes over HTTP.
+export async function createSignedUploadUrl(businessSlug: string, filename: string) {
   const path = `${businessSlug}/${filename}`;
-  const { error } = await getClient()
-    .storage.from(BUCKET)
-    .upload(path, bytes, { contentType, upsert: false });
+  const { data, error } = await getClient().storage.from(BUCKET).createSignedUploadUrl(path);
   if (error) throw error;
 
   const {
     data: { publicUrl },
   } = getClient().storage.from(BUCKET).getPublicUrl(path);
-  return publicUrl;
+
+  return { signedUrl: data.signedUrl, token: data.token, path, publicUrl };
 }

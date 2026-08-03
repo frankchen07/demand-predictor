@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import { GenerateRecommendationForm } from "./generate-recommendation-form";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -114,15 +115,10 @@ export default async function Home() {
       )}
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-        <form action="/api/recommendations/compute" method="POST">
-          <input type="hidden" name="businessSlug" value={BUSINESS_SLUG} />
-          <button
-            type="submit"
-            className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
-          >
-            {latestRecommendation ? "Regenerate recommendation" : "Generate recommendation"}
-          </button>
-        </form>
+        <GenerateRecommendationForm
+          businessSlug={BUSINESS_SLUG}
+          hasExisting={Boolean(latestRecommendation)}
+        />
         <a
           href="/submissions/upload"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"

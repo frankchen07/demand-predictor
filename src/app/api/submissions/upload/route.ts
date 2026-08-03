@@ -1,8 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { uploadSubmissionPhoto } from "@/lib/supabase-storage";
 import { extractSubmissionFromPhoto, type ProductBatchRef } from "@/lib/vision-ocr";
 
 const ALLOWED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -13,19 +12,20 @@ function normalizeTime(value: string | null): string | null {
 }
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
-  const businessSlug = formData.get("businessSlug");
-  const countDate = formData.get("countDate");
-  const photo = formData.get("photo");
+  const { businessSlug, countDate, publicUrl, contentType } = await request.json();
 
-  if (typeof businessSlug !== "string" || typeof countDate !== "string") {
-    return new Response("businessSlug and countDate are required", { status: 400 });
+  if (
+    typeof businessSlug !== "string" ||
+    typeof countDate !== "string" ||
+    typeof publicUrl !== "string"
+  ) {
+    return NextResponse.json(
+      { error: "businessSlug, countDate, and publicUrl are required" },
+      { status: 400 },
+    );
   }
-  if (!(photo instanceof File)) {
-    return new Response("photo is required", { status: 400 });
-  }
-  if (!ALLOWED_MEDIA_TYPES.has(photo.type)) {
-    return new Response(`unsupported image type: ${photo.type}`, { status: 400 });
+  if (!ALLOWED_MEDIA_TYPES.has(contentType)) {
+    return NextResponse.json({ error: `unsupported image type: ${contentType}` }, { status: 400 });
   }
 
   const [business] = await db
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     .from(schema.businesses)
     .where(eq(schema.businesses.slug, businessSlug));
   if (!business) {
-    return new Response("business not found", { status: 404 });
+    return NextResponse.json({ error: "business not found" }, { status: 404 });
   }
 
   const productBatchRows = await db
@@ -49,10 +49,13 @@ export async function POST(request: Request) {
 
   const productBatches: ProductBatchRef[] = productBatchRows;
 
-  const bytes = Buffer.from(await photo.arrayBuffer());
-  const ext = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
-  const filename = `${countDate}-${Date.now()}.${ext}`;
-  const photoUrl = await uploadSubmissionPhoto(businessSlug, filename, bytes, photo.type);
+  // Photo already landed in Supabase Storage via a client-side signed-URL upload
+  // (bypassing Vercel's 4.5MB function body limit); fetch it back server-side for OCR.
+  const photoRes = await fetch(publicUrl);
+  if (!photoRes.ok) {
+    return NextResponse.json({ error: "could not retrieve uploaded photo" }, { status: 502 });
+  }
+  const bytes = Buffer.from(await photoRes.arrayBuffer());
 
   const [submission] = await db
     .insert(schema.submissions)
@@ -60,14 +63,14 @@ export async function POST(request: Request) {
       businessId: business.id,
       countDate,
       source: "photo_upload",
-      photoUrl,
+      photoUrl: publicUrl,
       status: "draft",
     })
     .returning();
 
   const { lineItems } = await extractSubmissionFromPhoto(
     bytes.toString("base64"),
-    photo.type as "image/jpeg" | "image/png" | "image/webp",
+    contentType as "image/jpeg" | "image/png" | "image/webp",
     productBatches,
   );
 
@@ -88,5 +91,5 @@ export async function POST(request: Request) {
     });
   }
 
-  redirect(`/submissions/${submission.id}/confirm`);
+  return NextResponse.json({ submissionId: submission.id });
 }

@@ -36,8 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# uploaded sheet photos (local dev storage fallback)
-/public/uploads/
+# editor
+.vscode/
+.idea/
 
 # typescript
 *.tsbuildinfo

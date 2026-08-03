@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { wasteRatePct, stockoutRate } from "@/lib/demand-calc";
+import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -103,7 +104,10 @@ export default async function ComparisonPage() {
                   <th className="px-3 py-2">Batch</th>
                   <th className="px-3 py-2 text-right">Recommended</th>
                   <th className="px-3 py-2 text-right">Actual</th>
-                  <th className="px-3 py-2 text-right">Variance</th>
+                  <th className="px-3 py-2 text-right">
+                    Variance
+                    <InfoTooltip text="Actual baked minus recommended, and that difference as a % of the recommendation. Positive means you baked more than recommended." />
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -136,8 +140,14 @@ export default async function ComparisonPage() {
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
               <tr>
                 <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2 text-right">Waste rate</th>
-                <th className="px-3 py-2 text-right">Stockout rate</th>
+                <th className="px-3 py-2 text-right">
+                  Waste rate
+                  <InfoTooltip text="Unsold pieces ÷ total pieces baked that day, as a %. Lower is better — it's the number this whole tool is trying to bring down." />
+                </th>
+                <th className="px-3 py-2 text-right">
+                  Stockout rate
+                  <InfoTooltip text="% of items that sold out before closing that day. High stockout means you're likely underbaking, not just running lean." />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
