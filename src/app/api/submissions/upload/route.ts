@@ -1,9 +1,8 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import { uploadSubmissionPhoto } from "@/lib/supabase-storage";
 import { extractSubmissionFromPhoto, type ProductBatchRef } from "@/lib/vision-ocr";
 
 const ALLOWED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -52,11 +51,8 @@ export async function POST(request: Request) {
 
   const bytes = Buffer.from(await photo.arrayBuffer());
   const ext = photo.type === "image/png" ? "png" : photo.type === "image/webp" ? "webp" : "jpg";
-  const uploadDir = path.join(process.cwd(), "public", "uploads", businessSlug);
-  await mkdir(uploadDir, { recursive: true });
   const filename = `${countDate}-${Date.now()}.${ext}`;
-  await writeFile(path.join(uploadDir, filename), bytes);
-  const photoUrl = `/uploads/${businessSlug}/${filename}`;
+  const photoUrl = await uploadSubmissionPhoto(businessSlug, filename, bytes, photo.type);
 
   const [submission] = await db
     .insert(schema.submissions)
