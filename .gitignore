@@ -40,6 +40,10 @@ yarn-error.log*
 .vscode/
 .idea/
 
+# source sheet photos / scans — local test fixtures only, not app data.
+# Real uploads go to Supabase Storage; these are large binaries that don't belong in git.
+/public/midwife/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
