@@ -2,7 +2,13 @@ import { and, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { didStockOut, wasteRatePct, stockoutRate } from "@/lib/demand-calc";
+import {
+  didStockOut,
+  wasteRatePct,
+  stockoutRate,
+  formatTime,
+  withHoursToSellOut,
+} from "@/lib/demand-calc";
 import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
@@ -49,9 +55,16 @@ export default async function ComparisonDayPage({
     );
   }
 
-  const submissionLineItems = await db
+  const businessBatchTypes = await db
+    .select({ sequence: schema.batchTypes.sequence })
+    .from(schema.batchTypes)
+    .where(eq(schema.batchTypes.businessId, business.id));
+  const firstSequence = Math.min(...businessBatchTypes.map((b) => b.sequence));
+
+  const rawSubmissionLineItems = await db
     .select({
       productBatchId: schema.submissionLineItems.productBatchId,
+      productId: schema.products.id,
       bakedQty: schema.submissionLineItems.bakedQty,
       adjustmentQty: schema.submissionLineItems.adjustmentQty,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
@@ -69,6 +82,14 @@ export default async function ComparisonDayPage({
     .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
     .where(eq(schema.submissionLineItems.submissionId, submission.id))
     .orderBy(schema.products.displayName, schema.batchTypes.sequence);
+
+  const submissionLineItems = withHoursToSellOut(
+    rawSubmissionLineItems.map((item) => ({
+      ...item,
+      groupKey: item.productId,
+      isFirstBake: item.batchSequence === firstSequence,
+    })),
+  );
 
   const [recommendation] = await db
     .select()
@@ -100,7 +121,7 @@ export default async function ComparisonDayPage({
       <p className="mt-1 text-sm text-zinc-500">Per-product breakdown for this count date</p>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-3 py-2">Product</th>
@@ -115,6 +136,14 @@ export default async function ComparisonDayPage({
               <th className="px-3 py-2 text-right">
                 Sold out?
                 <InfoTooltip text="Whether this item sold out before closing that day." />
+              </th>
+              <th className="px-3 py-2 text-right">
+                Sold out at
+                <InfoTooltip text="When this item ran out that day, if it did." />
+              </th>
+              <th className="px-3 py-2 text-right">
+                Hours to sell
+                <InfoTooltip text="How long it took to sell out — from store open (7 AM) for the first bake of the day, or from when the previous bake of the same product sold out, for a topup." />
               </th>
             </tr>
           </thead>
@@ -137,6 +166,12 @@ export default async function ComparisonDayPage({
                     {rowWastePct == null ? "—" : `${rowWastePct.toFixed(1)}%`}
                   </td>
                   <td className="px-3 py-2 text-right">{didStockOut(item) ? "Yes" : "No"}</td>
+                  <td className="px-3 py-2 text-right">
+                    {item.timeSoldOut ? formatTime(item.timeSoldOut) : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {item.hoursToSellOut == null ? "—" : `${item.hoursToSellOut.toFixed(1)} hrs`}
+                  </td>
                 </tr>
               );
             })}
@@ -152,6 +187,7 @@ export default async function ComparisonDayPage({
               <td className="px-3 py-2 text-right font-medium text-zinc-900">
                 {totalStockoutPct.toFixed(0)}%
               </td>
+              <td className="px-3 py-2" colSpan={2}></td>
             </tr>
           </tfoot>
         </table>

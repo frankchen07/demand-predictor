@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { wasteRatePct, stockoutRate } from "@/lib/demand-calc";
+import { wasteRatePct, stockoutRate, formatTime, withHoursToSellOut } from "@/lib/demand-calc";
 import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
@@ -21,13 +21,21 @@ export default async function ComparisonPage() {
     );
   }
 
-  const comparisonRows = await db
+  const businessBatchTypes = await db
+    .select({ sequence: schema.batchTypes.sequence })
+    .from(schema.batchTypes)
+    .where(eq(schema.batchTypes.businessId, business.id));
+  const firstSequence = Math.min(...businessBatchTypes.map((b) => b.sequence));
+
+  const rawComparisonRows = await db
     .select({
       recommendedQty: schema.comparisonLineItems.recommendedQty,
       actualBakedQty: schema.comparisonLineItems.actualBakedQty,
       varianceQty: schema.comparisonLineItems.varianceQty,
       variancePct: schema.comparisonLineItems.variancePct,
+      timeSoldOut: schema.submissionLineItems.timeSoldOut,
       countDate: schema.submissions.countDate,
+      productId: schema.products.id,
       displayName: schema.products.displayName,
       batchLabel: schema.batchTypes.label,
       batchSequence: schema.batchTypes.sequence,
@@ -43,12 +51,27 @@ export default async function ComparisonPage() {
     )
     .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
     .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
+    .leftJoin(
+      schema.submissionLineItems,
+      and(
+        eq(schema.comparisonLineItems.submissionId, schema.submissionLineItems.submissionId),
+        eq(schema.comparisonLineItems.productBatchId, schema.submissionLineItems.productBatchId),
+      ),
+    )
     .where(eq(schema.products.businessId, business.id))
     .orderBy(
       desc(schema.submissions.countDate),
       schema.products.displayName,
       schema.batchTypes.sequence,
     );
+
+  const comparisonRows = withHoursToSellOut(
+    rawComparisonRows.map((row) => ({
+      ...row,
+      groupKey: `${row.countDate}:${row.productId}`,
+      isFirstBake: row.batchSequence === firstSequence,
+    })),
+  );
 
   const confirmedSubmissions = await db
     .select({ id: schema.submissions.id, countDate: schema.submissions.countDate })
@@ -96,7 +119,7 @@ export default async function ComparisonPage() {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[780px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Date</th>
@@ -107,6 +130,14 @@ export default async function ComparisonPage() {
                   <th className="px-3 py-2 text-right">
                     Variance
                     <InfoTooltip text="Actual baked minus recommended, and that difference as a % of the recommendation. Positive means you baked more than recommended." />
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    Sold out at
+                    <InfoTooltip text="When this item ran out that day, if it did." />
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    Hours to sell
+                    <InfoTooltip text="How long it took to sell out — from store open (7 AM) for the first bake of the day, or from when the previous bake of the same product sold out, for a topup." />
                   </th>
                 </tr>
               </thead>
@@ -124,6 +155,12 @@ export default async function ComparisonPage() {
                         : `${row.varianceQty > 0 ? "+" : ""}${row.varianceQty} (${Number(
                             row.variancePct,
                           ).toFixed(0)}%)`}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {row.hoursToSellOut == null ? "—" : `${row.hoursToSellOut.toFixed(1)} hrs`}
                     </td>
                   </tr>
                 ))}
@@ -146,8 +183,8 @@ export default async function ComparisonPage() {
                   <InfoTooltip text="Unsold pieces ÷ total pieces baked that day, as a %. Lower is better — it's the number this whole tool is trying to bring down." />
                 </th>
                 <th className="px-3 py-2 text-right">
-                  Stockout rate
-                  <InfoTooltip text="% of items that sold out before closing that day. High stockout means you're likely underbaking, not just running lean." />
+                  Sold out rate
+                  <InfoTooltip text="% of items that sold out before closing that day. A high sold-out rate means you're likely underbaking, not just running lean." />
                 </th>
               </tr>
             </thead>

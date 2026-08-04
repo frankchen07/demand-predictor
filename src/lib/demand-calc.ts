@@ -47,3 +47,58 @@ export function wasteRatePct(inputs: DemandInput[]): number | null {
   const totalUnsold = inputs.reduce((sum, i) => sum + (i.unsoldQty ?? 0), 0);
   return (totalUnsold / totalBaked) * 100;
 }
+
+const STORE_OPEN_TIME = "07:00:00";
+
+function timeToHours(time: string): number {
+  const [h, m, s] = time.split(":").map(Number);
+  return h + m / 60 + (s ?? 0) / 3600;
+}
+
+export function formatTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+export interface TimingInput {
+  groupKey: string; // rows sharing a key are ordered against each other by batchSequence
+  batchSequence: number;
+  isFirstBake: boolean; // true iff batchSequence equals the business's global minimum sequence
+  timeSoldOut: string | null;
+}
+
+/**
+ * The first bake of the day (isFirstBake) is measured from store open. Any later bake is
+ * measured from the nearest earlier-sequence row *actually present* in this group — not
+ * "whatever's first in today's data for this product," which would misattribute a
+ * topup-with-no-AM-row day to store open instead of showing it's unknown.
+ */
+export function withHoursToSellOut<T extends TimingInput>(
+  items: T[],
+): (T & { hoursToSellOut: number | null })[] {
+  const byGroup = new Map<string, T[]>();
+  for (const item of items) {
+    const group = byGroup.get(item.groupKey) ?? [];
+    group.push(item);
+    byGroup.set(item.groupKey, group);
+  }
+
+  const hoursByItem = new Map<T, number | null>();
+  for (const group of byGroup.values()) {
+    const sorted = [...group].sort((a, b) => a.batchSequence - b.batchSequence);
+    sorted.forEach((item, i) => {
+      const previous = i === 0 ? null : sorted[i - 1];
+      const baseline = item.isFirstBake ? STORE_OPEN_TIME : (previous?.timeSoldOut ?? null);
+      hoursByItem.set(
+        item,
+        item.timeSoldOut != null && baseline != null
+          ? timeToHours(item.timeSoldOut) - timeToHours(baseline)
+          : null,
+      );
+    });
+  }
+
+  return items.map((item) => ({ ...item, hoursToSellOut: hoursByItem.get(item) ?? null }));
+}
