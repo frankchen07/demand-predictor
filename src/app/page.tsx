@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { GenerateRecommendationForm } from "./generate-recommendation-form";
+import { InfoTooltip } from "./info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -86,7 +87,10 @@ export default async function Home() {
                 <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">Batch</th>
                 <th className="px-3 py-2 text-right">Bake</th>
-                <th className="px-3 py-2 text-right">Confidence</th>
+                <th className="px-3 py-2 text-right">
+                  Confidence
+                  <InfoTooltip text="Starts at 80%. -20 if this item stocked out more than half the time recently, -5 if demand's trending up, and -10 for every week of history short of our usual 3-week lookback. Lower confidence means less history or noisier data to go on." />
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">

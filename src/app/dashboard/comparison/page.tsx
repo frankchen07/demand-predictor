@@ -134,7 +134,8 @@ export default async function ComparisonPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-medium text-zinc-900">Waste rate over time</h2>
+        <h2 className="text-lg font-medium text-zinc-900">Rates over time</h2>
+        <p className="mt-1 text-sm text-zinc-500">Click a date for the per-product breakdown.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
           <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
@@ -153,7 +154,14 @@ export default async function ComparisonPage() {
             <tbody className="divide-y divide-zinc-100">
               {wasteByWeek.map((w) => (
                 <tr key={w.countDate}>
-                  <td className="px-3 py-2 text-zinc-500">{w.countDate}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/dashboard/comparison/${w.countDate}`}
+                      className="text-zinc-700 hover:underline"
+                    >
+                      {w.countDate}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2 text-right font-medium text-zinc-900">
                     {w.wastePct == null ? "—" : `${w.wastePct.toFixed(1)}%`}
                   </td>

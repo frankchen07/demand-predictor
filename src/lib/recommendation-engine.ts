@@ -195,6 +195,17 @@ export async function computeRecommendationsForBusiness(
       ),
     );
 
+  // "Regenerate" replaces, not stacks — a duplicate row for the same date left old
+  // and new recommendations ambiguous for comparison lookups (src/lib/comparison.ts).
+  await db
+    .delete(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.businessId, businessId),
+        eq(schema.recommendations.recommendationDate, recommendationDate),
+      ),
+    );
+
   const [recommendation] = await db
     .insert(schema.recommendations)
     .values({ businessId, recommendationDate, method: METHOD })

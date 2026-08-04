@@ -141,16 +141,20 @@ export const submissionLineItems = pgTable(
 );
 
 // a computed "bake this many next week" run
-export const recommendations = pgTable("recommendations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  businessId: uuid("business_id")
-    .notNull()
-    .references(() => businesses.id, { onDelete: "cascade" }),
-  recommendationDate: date("recommendation_date").notNull(),
-  computedAt: timestamp("computed_at").notNull().defaultNow(),
-  method: text("method").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+export const recommendations = pgTable(
+  "recommendations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    recommendationDate: date("recommendation_date").notNull(),
+    computedAt: timestamp("computed_at").notNull().defaultNow(),
+    method: text("method").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.businessId, t.recommendationDate)],
+);
 
 export const recommendationLineItems = pgTable(
   "recommendation_line_items",
