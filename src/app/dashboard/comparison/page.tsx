@@ -31,6 +31,7 @@ export default async function ComparisonPage() {
     .select({
       recommendedQty: schema.comparisonLineItems.recommendedQty,
       actualBakedQty: schema.comparisonLineItems.actualBakedQty,
+      actualUnsoldQty: schema.comparisonLineItems.actualUnsoldQty,
       varianceQty: schema.comparisonLineItems.varianceQty,
       variancePct: schema.comparisonLineItems.variancePct,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
@@ -105,7 +106,7 @@ export default async function ComparisonPage() {
   );
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
+    <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">Comparison</h1>
       <p className="mt-1 text-sm text-zinc-500">Recommended vs. actual, and waste over time</p>
 
@@ -119,7 +120,7 @@ export default async function ComparisonPage() {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[780px] text-sm">
+            <table className="w-full min-w-[1000px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Date</th>
@@ -138,6 +139,14 @@ export default async function ComparisonPage() {
                   <th className="px-3 py-2 text-right">
                     Hours to sell
                     <InfoTooltip text="How long it took to sell out — from store open (7 AM) for the first bake of the day, or from when the previous bake of the same product sold out, for a topup." />
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    Avg sell rate
+                    <InfoTooltip text="Baked pieces ÷ hours to sell — roughly how many pieces per hour this item moved. Higher means it sold faster." />
+                  </th>
+                  <th className="px-3 py-2 text-right">
+                    % waste
+                    <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
                   </th>
                 </tr>
               </thead>
@@ -162,6 +171,18 @@ export default async function ComparisonPage() {
                     <td className="px-3 py-2 text-right">
                       {row.hoursToSellOut == null ? "—" : `${row.hoursToSellOut.toFixed(1)} hrs`}
                     </td>
+                    <td className="px-3 py-2 text-right">
+                      {row.actualBakedQty != null &&
+                      row.hoursToSellOut != null &&
+                      row.hoursToSellOut > 0
+                        ? `${(row.actualBakedQty / row.hoursToSellOut).toFixed(1)}/hr`
+                        : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {row.actualBakedQty != null && row.actualBakedQty > 0
+                        ? `${(((row.actualUnsoldQty ?? 0) / row.actualBakedQty) * 100).toFixed(1)}%`
+                        : "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -179,12 +200,12 @@ export default async function ComparisonPage() {
               <tr>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2 text-right">
-                  Waste rate
+                  % waste
                   <InfoTooltip text="Unsold pieces ÷ total pieces baked that day, as a %. Lower is better — it's the number this whole tool is trying to bring down." />
                 </th>
                 <th className="px-3 py-2 text-right">
-                  Sold out rate
-                  <InfoTooltip text="% of items that sold out before closing that day. A high sold-out rate means you're likely underbaking, not just running lean." />
+                  % products sold out
+                  <InfoTooltip text="% of items that sold out before closing that day. A high number means you're likely underbaking, not just running lean." />
                 </th>
               </tr>
             </thead>

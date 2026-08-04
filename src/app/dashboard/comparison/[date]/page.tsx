@@ -116,12 +116,12 @@ export default async function ComparisonDayPage({
   const totalStockoutPct = stockoutRate(submissionLineItems) * 100;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
+    <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">{date}</h1>
       <p className="mt-1 text-sm text-zinc-500">Per-product breakdown for this count date</p>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[1050px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-3 py-2">Product</th>
@@ -129,10 +129,6 @@ export default async function ComparisonDayPage({
               <th className="px-3 py-2 text-right">Recommended</th>
               <th className="px-3 py-2 text-right">Baked</th>
               <th className="px-3 py-2 text-right">Unsold</th>
-              <th className="px-3 py-2 text-right">
-                Waste %
-                <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
-              </th>
               <th className="px-3 py-2 text-right">
                 Sold out?
                 <InfoTooltip text="Whether this item sold out before closing that day." />
@@ -144,6 +140,14 @@ export default async function ComparisonDayPage({
               <th className="px-3 py-2 text-right">
                 Hours to sell
                 <InfoTooltip text="How long it took to sell out — from store open (7 AM) for the first bake of the day, or from when the previous bake of the same product sold out, for a topup." />
+              </th>
+              <th className="px-3 py-2 text-right">
+                Avg sell rate
+                <InfoTooltip text="Baked pieces ÷ hours to sell — roughly how many pieces per hour this item moved. Higher means it sold faster." />
+              </th>
+              <th className="px-3 py-2 text-right">
+                % waste
+                <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
               </th>
             </tr>
           </thead>
@@ -162,15 +166,20 @@ export default async function ComparisonDayPage({
                   </td>
                   <td className="px-3 py-2 text-right">{item.bakedQty ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{item.unsoldQty ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">
-                    {rowWastePct == null ? "—" : `${rowWastePct.toFixed(1)}%`}
-                  </td>
                   <td className="px-3 py-2 text-right">{didStockOut(item) ? "Yes" : "No"}</td>
                   <td className="px-3 py-2 text-right">
                     {item.timeSoldOut ? formatTime(item.timeSoldOut) : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     {item.hoursToSellOut == null ? "—" : `${item.hoursToSellOut.toFixed(1)} hrs`}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {item.bakedQty != null && item.hoursToSellOut != null && item.hoursToSellOut > 0
+                      ? `${(item.bakedQty / item.hoursToSellOut).toFixed(1)}/hr`
+                      : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {rowWastePct == null ? "—" : `${rowWastePct.toFixed(1)}%`}
                   </td>
                 </tr>
               );
@@ -182,12 +191,12 @@ export default async function ComparisonDayPage({
                 Total
               </td>
               <td className="px-3 py-2 text-right font-medium text-zinc-900">
-                {totalWastePct == null ? "—" : `${totalWastePct.toFixed(1)}%`}
-              </td>
-              <td className="px-3 py-2 text-right font-medium text-zinc-900">
                 {totalStockoutPct.toFixed(0)}%
               </td>
-              <td className="px-3 py-2" colSpan={2}></td>
+              <td className="px-3 py-2" colSpan={3}></td>
+              <td className="px-3 py-2 text-right font-medium text-zinc-900">
+                {totalWastePct == null ? "—" : `${totalWastePct.toFixed(1)}%`}
+              </td>
             </tr>
           </tfoot>
         </table>
