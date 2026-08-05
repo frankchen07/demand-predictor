@@ -52,21 +52,32 @@ export default async function ConfirmSubmissionPage({
     ),
   );
 
+  const alreadyConfirmed = submission.status === "confirmed";
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
-      <h1 className="text-xl font-semibold text-zinc-900">Confirm sheet — {submission.countDate}</h1>
+      <h1 className="text-xl font-semibold text-zinc-900">
+        {alreadyConfirmed ? "Review sheet" : "Confirm sheet"} — {submission.countDate}
+      </h1>
       <p className="mt-1 text-sm text-zinc-500">
-        We read the photo below. Check the highlighted rows first — those are the ones
-        we&apos;re least sure about. Fix anything wrong, then confirm.
+        {alreadyConfirmed
+          ? `Confirmed by ${submission.reviewedBy ?? "someone"} on ${
+              submission.reviewedAt ? submission.reviewedAt.toISOString().slice(0, 10) : "an earlier date"
+            }. Make corrections below and save again.`
+          : "We read the photo below. Check the highlighted rows first — those are the ones we're least sure about. Fix anything wrong, then confirm."}
       </p>
 
-      {submission.photoUrl && (
+      {submission.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={submission.photoUrl}
           alt="Uploaded count sheet"
           className="mt-4 max-h-64 w-full rounded-lg border border-zinc-200 object-contain"
         />
+      ) : (
+        <p className="mt-4 rounded-md bg-zinc-100 p-3 text-sm text-zinc-600">
+          No source photo on file for this entry — cross-check against your paper records.
+        </p>
       )}
 
       <form action={`/api/submissions/${submission.id}/confirm`} method="POST" className="mt-6">
@@ -105,6 +116,9 @@ export default async function ConfirmSubmissionPage({
                         defaultValue={item.bakedQty ?? ""}
                         className="w-16 rounded border border-zinc-300 px-2 py-1"
                       />
+                      {ocr?.bakedQty != null && (
+                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.bakedQty}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -113,6 +127,9 @@ export default async function ConfirmSubmissionPage({
                         defaultValue={item.adjustmentQty ?? ""}
                         className="w-16 rounded border border-zinc-300 px-2 py-1"
                       />
+                      {ocr?.adjustmentQty != null && (
+                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.adjustmentQty}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -121,6 +138,9 @@ export default async function ConfirmSubmissionPage({
                         defaultValue={item.timeSoldOut?.slice(0, 5) ?? ""}
                         className="w-28 rounded border border-zinc-300 px-2 py-1"
                       />
+                      {ocr?.timeSoldOut != null && (
+                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.timeSoldOut}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -129,6 +149,9 @@ export default async function ConfirmSubmissionPage({
                         defaultValue={item.unsoldQty ?? ""}
                         className="w-16 rounded border border-zinc-300 px-2 py-1"
                       />
+                      {ocr?.unsoldQty != null && (
+                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.unsoldQty}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -150,6 +173,7 @@ export default async function ConfirmSubmissionPage({
           <input
             type="text"
             name="reviewedBy"
+            defaultValue={submission.reviewedBy ?? ""}
             required
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
           />
@@ -159,7 +183,7 @@ export default async function ConfirmSubmissionPage({
           type="submit"
           className="mt-4 w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
         >
-          Confirm &amp; save
+          {alreadyConfirmed ? "Save corrections" : "Confirm & save"}
         </button>
       </form>
     </main>
