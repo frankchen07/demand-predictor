@@ -26,8 +26,8 @@ export default async function ComparisonPage() {
   const comparisonRows = await db
     .select({
       recommendedQty: schema.comparisonLineItems.recommendedQty,
-      actualBakedQty: schema.comparisonLineItems.actualBakedQty,
       actualUnsoldQty: schema.comparisonLineItems.actualUnsoldQty,
+      adjustmentQty: schema.submissionLineItems.adjustmentQty,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
       countDate: schema.submissions.countDate,
       displayName: schema.products.displayName,
@@ -112,7 +112,7 @@ export default async function ComparisonPage() {
                   <th className="px-3 py-2">Product</th>
                   <th className="px-3 py-2">Batch</th>
                   <th className="px-3 py-2 text-right">Recommended</th>
-                  <th className="px-3 py-2 text-right">Actual</th>
+                  <th className="px-3 py-2 text-right">+/-</th>
                   <th className="px-3 py-2 text-right">
                     Sold out at
                     <InfoTooltip text="When this item ran out that day, if it did." />
@@ -127,7 +127,11 @@ export default async function ComparisonPage() {
                     <td className="px-3 py-2 text-zinc-900">{row.displayName}</td>
                     <td className="px-3 py-2 text-zinc-500">{row.batchLabel}</td>
                     <td className="px-3 py-2 text-right">{row.recommendedQty}</td>
-                    <td className="px-3 py-2 text-right">{row.actualBakedQty ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      {row.adjustmentQty == null
+                        ? "—"
+                        : `${row.adjustmentQty > 0 ? "+" : ""}${row.adjustmentQty}`}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
                     </td>
