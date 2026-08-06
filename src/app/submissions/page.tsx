@@ -6,6 +6,8 @@ import { AttachPhotoForm } from "./attach-photo-form";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
+export const dynamic = "force-dynamic";
+
 const SOURCE_LABEL: Record<string, string> = {
   manual_seed: "Manual seed",
   photo_upload: "Photo upload",

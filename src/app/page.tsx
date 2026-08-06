@@ -6,6 +6,8 @@ import { InfoTooltip } from "./info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
+export const dynamic = "force-dynamic";
+
 function confidenceColor(confidence: number) {
   if (confidence >= 70) return "bg-green-100 text-green-800";
   if (confidence >= 40) return "bg-yellow-100 text-yellow-800";

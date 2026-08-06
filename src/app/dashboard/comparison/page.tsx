@@ -7,6 +7,8 @@ import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
+export const dynamic = "force-dynamic";
+
 export default async function ComparisonPage() {
   const [business] = await db
     .select()
