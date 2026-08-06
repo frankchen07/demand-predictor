@@ -1,12 +1,33 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import type { RecommendationResult } from "@/lib/recommendation-engine";
+import { formatTime } from "@/lib/demand-calc";
+import {
+  computeRecommendationWalkthrough,
+  type RecommendationResult,
+  type RecommendationWalkthrough,
+} from "@/lib/recommendation-engine";
 import { GenerateRecommendationForm } from "./generate-recommendation-form";
 
 type Reasoning = RecommendationResult["reasoning"];
+type WalkthroughWeek = RecommendationWalkthrough["weeklyDemand"][number];
 
 const BUSINESS_SLUG = "midwife-and-baker";
+// Single illustrative example for the "worked example" section below — not a
+// per-product breakdown, just one concrete item to make the method tangible.
+const WALKTHROUGH_PRODUCT_NAME = "Bakers Choice Croissant";
+const WALKTHROUGH_BATCH_LABEL = "AM";
+
+function describeWeek(week: WalkthroughWeek, stockoutAdjustmentFactor: number): string {
+  if (week.timeSoldOut != null) {
+    const multiplier = (1 + stockoutAdjustmentFactor).toFixed(2);
+    return `baked ${week.bakedQty}, sold out at ${formatTime(week.timeSoldOut)} → demand ${week.bakedQty} × ${multiplier} = ${week.estimatedDemand}`;
+  }
+  if (week.unsoldQty != null) {
+    return `baked ${week.bakedQty}, ${week.unsoldQty} unsold → demand ${week.bakedQty} − ${week.unsoldQty} = ${week.estimatedDemand}`;
+  }
+  return `baked ${week.bakedQty}, no stockout or unsold logged → demand ${week.estimatedDemand}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +136,23 @@ export default async function Home() {
         })()
       : null;
 
+  const [walkthroughBatch] = await db
+    .select({ id: schema.productBatches.id })
+    .from(schema.productBatches)
+    .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
+    .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
+    .where(
+      and(
+        eq(schema.products.businessId, business.id),
+        eq(schema.products.displayName, WALKTHROUGH_PRODUCT_NAME),
+        eq(schema.batchTypes.label, WALKTHROUGH_BATCH_LABEL),
+      ),
+    );
+
+  const walkthrough = walkthroughBatch
+    ? await computeRecommendationWalkthrough(walkthroughBatch.id, business.id)
+    : null;
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">{business.name}</h1>
@@ -181,6 +219,73 @@ export default async function Home() {
               </li>
             )}
           </ul>
+        </div>
+      )}
+
+      {walkthrough && (
+        <div className="mt-4 rounded-lg border border-zinc-200 p-4 text-sm">
+          <h2 className="font-medium text-zinc-900">
+            Worked example: {WALKTHROUGH_PRODUCT_NAME} ({WALKTHROUGH_BATCH_LABEL})
+          </h2>
+          <ol className="mt-2 list-decimal space-y-3 pl-4 text-zinc-500">
+            <li>
+              Each confirmed week&apos;s raw numbers become an estimated demand:
+              <ul className="mt-1 space-y-0.5">
+                {walkthrough.weeklyDemand.map((week) => (
+                  <li key={week.countDate}>
+                    {week.countDate}: {describeWeek(week, walkthrough.stockoutAdjustmentFactor)}
+                  </li>
+                ))}
+              </ul>
+            </li>
+            <li>
+              The most recent {walkthrough.trend.weights.length} weeks, weighted{" "}
+              {walkthrough.trend.weights.map((w) => `${w * 100}%`).join("/")} (most recent
+              first):{" "}
+              {walkthrough.trend.weights
+                .map((w, i) => `${walkthrough.weeklyDemand[i].estimatedDemand} × ${w}`)
+                .join(" + ")}{" "}
+              = {walkthrough.trend.shortTermCenter}
+            </li>
+            <li>
+              Week-over-week changes: {walkthrough.growth.changes
+                .map((c) => `${c >= 0 ? "+" : ""}${c}%`)
+                .join(", ")}
+              . Average: {walkthrough.growth.rawAveragePct >= 0 ? "+" : ""}
+              {walkthrough.growth.rawAveragePct}%
+              {walkthrough.growth.rawAveragePct !== walkthrough.growth.clampedGrowthRatePct
+                ? ` — capped at ±30%, so ${walkthrough.growth.clampedGrowthRatePct}% is used`
+                : " — under the ±30% cap, so it's used as-is"}
+              .
+            </li>
+            <li>
+              Projected demand: {walkthrough.trend.shortTermCenter} × (1 +{" "}
+              {walkthrough.growth.clampedGrowthRatePct}%) = {walkthrough.projectedDemand}
+            </li>
+            <li>
+              {walkthrough.buffer.bufferSource === "historical" ? (
+                <>
+                  Safety buffer: average demand across these weeks is{" "}
+                  {walkthrough.buffer.mean}. Each week&apos;s deviation from that average,
+                  sorted least to greatest: {walkthrough.buffer.deviationsSorted?.join(", ")}
+                  . Because a stockout is treated as ~2x costlier than waste, the buffer
+                  targets the {(walkthrough.buffer.criticalRatio * 100).toFixed(1)}th
+                  percentile of that list: {walkthrough.buffer.bufferQty}.
+                </>
+              ) : (
+                <>
+                  Safety buffer: fewer than 2 weeks of usable history, so a flat{" "}
+                  {(walkthrough.buffer.fallbackPct ?? 0) * 100}% of the trend is used
+                  instead: {walkthrough.trend.shortTermCenter} ×{" "}
+                  {walkthrough.buffer.fallbackPct} = {walkthrough.buffer.bufferQty}.
+                </>
+              )}
+            </li>
+            <li>
+              Final bake count: ceil({walkthrough.projectedDemand} +{" "}
+              {walkthrough.buffer.bufferQty}) = {walkthrough.suggestedBakeQty}
+            </li>
+          </ol>
         </div>
       )}
 

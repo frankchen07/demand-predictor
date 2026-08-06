@@ -38,26 +38,33 @@ export interface RecommendationResult {
   };
 }
 
-// demands is most-recent-first; averages the % change between each consecutive pair,
-// clamped so a single volatile week can't dominate a small sample.
-function averageGrowthRate(demands: number[]): number {
-  if (demands.length < 2) return 0;
-  const changes: number[] = [];
-  for (let i = 0; i < demands.length - 1; i++) {
-    const newer = demands[i];
-    const older = demands[i + 1];
-    if (older === 0) continue;
-    changes.push((newer - older) / older);
-  }
-  if (changes.length === 0) return 0;
-  const avg = changes.reduce((a, b) => a + b, 0) / changes.length;
-  return Math.max(-MAX_GROWTH_RATE, Math.min(MAX_GROWTH_RATE, avg));
+export interface RecommendationWalkthrough {
+  weeksOfData: number;
+  stockoutAdjustmentFactor: number;
+  // most-recent-first; only weeks that produced a demand estimate (bakedQty != null)
+  weeklyDemand: {
+    countDate: string;
+    bakedQty: number;
+    adjustmentQty: number | null;
+    timeSoldOut: string | null;
+    unsoldQty: number | null;
+    estimatedDemand: number;
+  }[];
+  trend: { weights: number[]; terms: number[]; shortTermCenter: number };
+  growth: { changes: number[]; rawAveragePct: number; clampedGrowthRatePct: number };
+  projectedDemand: number;
+  buffer: {
+    bufferSource: "historical" | "fallback";
+    mean?: number;
+    deviationsSorted?: number[];
+    criticalRatio: number;
+    fallbackPct?: number;
+    bufferQty: number;
+  };
+  suggestedBakeQty: number;
 }
 
-export async function computeRecommendationForProductBatch(
-  productBatchId: string,
-  businessId: string,
-): Promise<RecommendationResult | null> {
+async function fetchDemandHistory(productBatchId: string, businessId: string) {
   const [productBatch] = await db
     .select()
     .from(schema.productBatches)
@@ -87,6 +94,52 @@ export async function computeRecommendationForProductBatch(
     .orderBy(desc(schema.submissions.countDate))
     .limit(MAX_HISTORY_WEEKS);
 
+  const stockoutFactor = parseFloat(productBatch.stockoutAdjustmentFactor);
+  const demandInputs: DemandInput[] = rows.map((r) => ({
+    bakedQty: r.bakedQty,
+    adjustmentQty: r.adjustmentQty,
+    timeSoldOut: r.timeSoldOut,
+    unsoldQty: r.unsoldQty,
+  }));
+
+  // most-recent-first, matching rows' order (desc by countDate)
+  const demands = demandInputs
+    .map((d) => estimateDemand(d, stockoutFactor))
+    .filter((d): d is number => d != null);
+
+  return { rows, demandInputs, demands, stockoutFactor };
+}
+
+// demands is most-recent-first; averages the % change between each consecutive pair.
+// rawAveragePct is the unclamped average; clampedGrowthRatePct is what feeds the
+// projection so a single volatile week can't dominate a small sample.
+function computeGrowth(demands: number[]): {
+  changes: number[];
+  rawAveragePct: number;
+  clampedGrowthRatePct: number;
+} {
+  if (demands.length < 2) return { changes: [], rawAveragePct: 0, clampedGrowthRatePct: 0 };
+  const changes: number[] = [];
+  for (let i = 0; i < demands.length - 1; i++) {
+    const newer = demands[i];
+    const older = demands[i + 1];
+    if (older === 0) continue;
+    changes.push((newer - older) / older);
+  }
+  if (changes.length === 0) return { changes, rawAveragePct: 0, clampedGrowthRatePct: 0 };
+  const rawAveragePct = changes.reduce((a, b) => a + b, 0) / changes.length;
+  const clampedGrowthRatePct = Math.max(-MAX_GROWTH_RATE, Math.min(MAX_GROWTH_RATE, rawAveragePct));
+  return { changes, rawAveragePct, clampedGrowthRatePct };
+}
+
+export async function computeRecommendationForProductBatch(
+  productBatchId: string,
+  businessId: string,
+): Promise<RecommendationResult | null> {
+  const history = await fetchDemandHistory(productBatchId, businessId);
+  if (!history) return null;
+  const { rows, demandInputs, demands } = history;
+
   if (rows.length === 0) {
     return {
       productBatchId,
@@ -103,19 +156,6 @@ export async function computeRecommendationForProductBatch(
       },
     };
   }
-
-  const stockoutFactor = parseFloat(productBatch.stockoutAdjustmentFactor);
-  const demandInputs: DemandInput[] = rows.map((r) => ({
-    bakedQty: r.bakedQty,
-    adjustmentQty: r.adjustmentQty,
-    timeSoldOut: r.timeSoldOut,
-    unsoldQty: r.unsoldQty,
-  }));
-
-  // most-recent-first, matching rows' order (desc by countDate)
-  const demands = demandInputs
-    .map((d) => estimateDemand(d, stockoutFactor))
-    .filter((d): d is number => d != null);
 
   if (demands.length === 0) {
     return {
@@ -141,7 +181,7 @@ export async function computeRecommendationForProductBatch(
       .slice(0, trendWeights.length)
       .reduce((sum, d, i) => sum + d * trendWeights[i], 0) / trendWeightSum;
 
-  const growthRatePct = averageGrowthRate(demands);
+  const { clampedGrowthRatePct: growthRatePct } = computeGrowth(demands);
   const projectedDemand = shortTermCenter * (1 + growthRatePct);
 
   const rate = stockoutRate(demandInputs);
@@ -177,6 +217,83 @@ export async function computeRecommendationForProductBatch(
       bufferSource,
       criticalRatio: CRITICAL_RATIO,
     },
+  };
+}
+
+// Recomputes the same calculation as computeRecommendationForProductBatch but exposes
+// every intermediate step, for rendering a human-readable worked example. Not used by
+// the generate/regenerate flow.
+export async function computeRecommendationWalkthrough(
+  productBatchId: string,
+  businessId: string,
+): Promise<RecommendationWalkthrough | null> {
+  const history = await fetchDemandHistory(productBatchId, businessId);
+  if (!history) return null;
+  const { rows, demandInputs, demands, stockoutFactor } = history;
+  if (demands.length === 0) return null;
+
+  const weeklyDemand = rows
+    .map((r, i) => ({
+      countDate: r.countDate,
+      bakedQty: r.bakedQty,
+      adjustmentQty: r.adjustmentQty,
+      timeSoldOut: r.timeSoldOut,
+      unsoldQty: r.unsoldQty,
+      estimatedDemand: estimateDemand(demandInputs[i], stockoutFactor),
+    }))
+    .filter(
+      (w): w is typeof w & { bakedQty: number; estimatedDemand: number } =>
+        w.estimatedDemand != null,
+    );
+
+  const trendWeights = RECENT_WEIGHTS.slice(0, Math.min(TREND_WINDOW_WEEKS, demands.length));
+  const trendWeightSum = trendWeights.reduce((a, b) => a + b, 0);
+  const terms = demands.slice(0, trendWeights.length).map((d, i) => d * trendWeights[i]);
+  const shortTermCenter = terms.reduce((a, b) => a + b, 0) / trendWeightSum;
+
+  const growth = computeGrowth(demands);
+  const projectedDemand = shortTermCenter * (1 + growth.clampedGrowthRatePct);
+
+  let buffer: RecommendationWalkthrough["buffer"];
+  if (demands.length < 2) {
+    buffer = {
+      bufferSource: "fallback",
+      fallbackPct: FALLBACK_BUFFER_PCT,
+      criticalRatio: CRITICAL_RATIO,
+      bufferQty: Math.round(shortTermCenter * FALLBACK_BUFFER_PCT * 100) / 100,
+    };
+  } else {
+    const mean = demands.reduce((a, b) => a + b, 0) / demands.length;
+    const deviationsSorted = demands.map((d) => d - mean).sort((a, b) => a - b);
+    const bufferQty = Math.max(0, quantile(deviationsSorted, CRITICAL_RATIO));
+    buffer = {
+      bufferSource: "historical",
+      mean: Math.round(mean * 100) / 100,
+      deviationsSorted: deviationsSorted.map((d) => Math.round(d * 100) / 100),
+      criticalRatio: CRITICAL_RATIO,
+      bufferQty: Math.round(bufferQty * 100) / 100,
+    };
+  }
+
+  const suggestedBakeQty = Math.ceil(projectedDemand + buffer.bufferQty);
+
+  return {
+    weeksOfData: rows.length,
+    stockoutAdjustmentFactor: stockoutFactor,
+    weeklyDemand,
+    trend: {
+      weights: trendWeights,
+      terms: terms.map((t) => Math.round(t * 100) / 100),
+      shortTermCenter: Math.round(shortTermCenter * 100) / 100,
+    },
+    growth: {
+      changes: growth.changes.map((c) => Math.round(c * 10000) / 100),
+      rawAveragePct: Math.round(growth.rawAveragePct * 10000) / 100,
+      clampedGrowthRatePct: Math.round(growth.clampedGrowthRatePct * 10000) / 100,
+    },
+    projectedDemand: Math.round(projectedDemand * 100) / 100,
+    buffer,
+    suggestedBakeQty,
   };
 }
 
