@@ -55,7 +55,7 @@ export default async function ConfirmSubmissionPage({
   const alreadyConfirmed = submission.status === "confirmed";
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
+    <main className="mx-auto max-w-[1600px] px-4 py-8 pb-24">
       <h1 className="text-xl font-semibold text-zinc-900">
         {alreadyConfirmed ? "Review sheet" : "Confirm sheet"} — {submission.countDate}
       </h1>
@@ -67,125 +67,137 @@ export default async function ConfirmSubmissionPage({
           : "We read the photo below. Check the highlighted rows first — those are the ones we're least sure about. Fix anything wrong, then confirm."}
       </p>
 
-      {submission.photoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={submission.photoUrl}
-          alt="Uploaded count sheet"
-          className="mt-4 max-h-64 w-full rounded-lg border border-zinc-200 object-contain"
-        />
-      ) : (
+      {!submission.photoUrl && (
         <p className="mt-4 rounded-md bg-zinc-100 p-3 text-sm text-zinc-600">
           No source photo on file for this entry — cross-check against your paper records.
         </p>
       )}
 
-      <form action={`/api/submissions/${submission.id}/confirm`} method="POST" className="mt-6">
-        <div className="overflow-x-auto rounded-lg border border-zinc-200">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
-              <tr>
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2">Batch</th>
-                <th className="px-3 py-2">Baked</th>
-                <th className="px-3 py-2">+/-</th>
-                <th className="px-3 py-2">Sold out at</th>
-                <th className="px-3 py-2">Unsold</th>
-                <th className="px-3 py-2">Notes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {lineItems.map((item) => {
-                const ocr = ocrByBatch.get(item.productBatchId);
-                const flagged = ocr && (ocr.ambiguous || ocr.confidence < 70);
-                return (
-                  <tr
-                    key={item.productBatchId}
-                    className={flagged ? confidenceColor(ocr.confidence) : ""}
-                  >
-                    <td className="px-3 py-2 whitespace-nowrap text-zinc-900">
-                      {item.displayName}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-zinc-500">
-                      {item.batchLabel}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        name={`bakedQty_${item.productBatchId}`}
-                        defaultValue={item.bakedQty ?? ""}
-                        className="w-16 rounded border border-zinc-300 px-2 py-1"
-                      />
-                      {ocr?.bakedQty != null && (
-                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.bakedQty}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        name={`adjustmentQty_${item.productBatchId}`}
-                        defaultValue={item.adjustmentQty ?? ""}
-                        className="w-16 rounded border border-zinc-300 px-2 py-1"
-                      />
-                      {ocr?.adjustmentQty != null && (
-                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.adjustmentQty}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        name={`timeSoldOut_${item.productBatchId}`}
-                        defaultValue={item.timeSoldOut?.slice(0, 5) ?? ""}
-                        className="w-28 rounded border border-zinc-300 px-2 py-1"
-                      />
-                      {ocr?.timeSoldOut != null && (
-                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.timeSoldOut}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        name={`unsoldQty_${item.productBatchId}`}
-                        defaultValue={item.unsoldQty ?? ""}
-                        className="w-16 rounded border border-zinc-300 px-2 py-1"
-                      />
-                      {ocr?.unsoldQty != null && (
-                        <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.unsoldQty}</p>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="text"
-                        name={`notes_${item.productBatchId}`}
-                        defaultValue={[item.notes, ocr?.notes].filter(Boolean).join(" / ")}
-                        className="w-40 rounded border border-zinc-300 px-2 py-1"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="mt-6 flex flex-col gap-6 lg:flex-row">
+        {submission.photoUrl && (
+          <div className="lg:w-[42%] lg:shrink-0">
+            <div className="lg:sticky lg:top-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={submission.photoUrl}
+                alt="Uploaded count sheet"
+                className="max-h-80 w-full rounded-lg border border-zinc-200 object-contain lg:max-h-[85vh]"
+              />
+            </div>
+          </div>
+        )}
 
-        <label className="mt-4 flex flex-col gap-1 sm:w-64">
-          <span className="text-sm font-medium text-zinc-700">Confirmed by</span>
-          <input
-            type="text"
-            name="reviewedBy"
-            defaultValue={submission.reviewedBy ?? ""}
-            required
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-        </label>
-
-        <button
-          type="submit"
-          className="mt-4 w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
+        <form
+          action={`/api/submissions/${submission.id}/confirm`}
+          method="POST"
+          className="min-w-0 lg:flex-1"
         >
-          {alreadyConfirmed ? "Save corrections" : "Confirm & save"}
-        </button>
-      </form>
+          <div className="overflow-x-auto rounded-lg border border-zinc-200">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-3 py-2">Product</th>
+                  <th className="px-3 py-2">Batch</th>
+                  <th className="px-3 py-2">Baked</th>
+                  <th className="px-3 py-2">+/-</th>
+                  <th className="px-3 py-2">Sold out at</th>
+                  <th className="px-3 py-2">Unsold</th>
+                  <th className="px-3 py-2">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {lineItems.map((item) => {
+                  const ocr = ocrByBatch.get(item.productBatchId);
+                  const flagged = ocr && (ocr.ambiguous || ocr.confidence < 70);
+                  return (
+                    <tr
+                      key={item.productBatchId}
+                      className={flagged ? confidenceColor(ocr.confidence) : ""}
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap text-zinc-900">
+                        {item.displayName}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-zinc-500">
+                        {item.batchLabel}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          name={`bakedQty_${item.productBatchId}`}
+                          defaultValue={item.bakedQty ?? ""}
+                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                        />
+                        {ocr?.bakedQty != null && (
+                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.bakedQty}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          name={`adjustmentQty_${item.productBatchId}`}
+                          defaultValue={item.adjustmentQty ?? ""}
+                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                        />
+                        {ocr?.adjustmentQty != null && (
+                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.adjustmentQty}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="time"
+                          name={`timeSoldOut_${item.productBatchId}`}
+                          defaultValue={item.timeSoldOut?.slice(0, 5) ?? ""}
+                          className="w-28 rounded border border-zinc-300 px-2 py-1"
+                        />
+                        {ocr?.timeSoldOut != null && (
+                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.timeSoldOut}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          name={`unsoldQty_${item.productBatchId}`}
+                          defaultValue={item.unsoldQty ?? ""}
+                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                        />
+                        {ocr?.unsoldQty != null && (
+                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.unsoldQty}</p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          type="text"
+                          name={`notes_${item.productBatchId}`}
+                          defaultValue={[item.notes, ocr?.notes].filter(Boolean).join(" / ")}
+                          className="w-40 rounded border border-zinc-300 px-2 py-1"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <label className="mt-4 flex flex-col gap-1 sm:w-64">
+            <span className="text-sm font-medium text-zinc-700">Confirmed by</span>
+            <input
+              type="text"
+              name="reviewedBy"
+              defaultValue={submission.reviewedBy ?? ""}
+              required
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="mt-4 w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
+          >
+            {alreadyConfirmed ? "Save corrections" : "Confirm & save"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
