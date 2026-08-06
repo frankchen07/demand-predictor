@@ -48,6 +48,21 @@ export function wasteRatePct(inputs: DemandInput[]): number | null {
   return (totalUnsold / totalBaked) * 100;
 }
 
+/**
+ * Nonparametric quantile (linear interpolation between ranks) over an ascending-sorted
+ * array. Used for the newsvendor buffer: with only a handful of historical demand
+ * samples per item, an empirical quantile on the actual swings is more honest than
+ * assuming a normal distribution.
+ */
+export function quantile(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  const idx = p * (sortedAsc.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sortedAsc[lo];
+  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+}
+
 const STORE_OPEN_TIME = "07:00:00";
 
 function timeToHours(time: string): number {

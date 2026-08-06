@@ -1,34 +1,57 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { estimateDemand, stockoutRate, type DemandInput } from "./demand-calc";
+import { estimateDemand, quantile, stockoutRate, type DemandInput } from "./demand-calc";
 
-const WEEKS_TO_LOOK_BACK = 3;
+// Cap on how far back we pull demand samples. ~10 weeks of real history exist today;
+// this is a comfortable ceiling above that, not a claim we have a year of seasonality —
+// bump it as more weeks accumulate.
+const MAX_HISTORY_WEEKS = 12;
+// Short-term center of mass — unchanged from the original weighted rolling average.
+const TREND_WINDOW_WEEKS = 3;
 const RECENT_WEIGHTS = [0.5, 0.3, 0.2]; // most recent week first
-const METHOD = "weighted_rolling_avg_3wk";
+// Business assumption: a stockout (lost sale + annoyed customer) costs ~2x a wasted
+// unit. Global default for now — revisit per-item once there's a feel for which items
+// have meaningfully different margins.
+const STOCKOUT_TO_WASTE_COST_RATIO = 2;
+const CRITICAL_RATIO =
+  STOCKOUT_TO_WASTE_COST_RATIO / (STOCKOUT_TO_WASTE_COST_RATIO + 1);
+// Buffer used when there's fewer than 2 demand samples — not enough spread to measure
+// a real quantile from, so fall back to a flat percentage of the center estimate.
+const FALLBACK_BUFFER_PCT = 0.2;
+// Guardrail so one noisy week can't dominate the growth-rate estimate on a small sample.
+const MAX_GROWTH_RATE = 0.3;
+const METHOD = "newsvendor_v1";
 
 export interface RecommendationResult {
   productBatchId: string;
   suggestedBakeQty: number;
   confidence: number;
   reasoning: {
-    avgBakedQty: number | null;
-    avgEstimatedDemand: number | null;
-    stockoutRate: number;
+    projectedDemand: number;
+    growthRatePct: number;
     weeksOfData: number;
-    trend: "increasing" | "stable" | "decreasing";
+    stockoutRate: number;
+    bufferQty: number;
+    bufferSource: "historical" | "fallback";
+    criticalRatio: number;
   };
 }
 
-function trendDirection(demands: number[]): "increasing" | "stable" | "decreasing" {
-  // demands is most-recent-first; compare most recent to oldest in the window
-  if (demands.length < 2) return "stable";
-  const newest = demands[0];
-  const oldest = demands[demands.length - 1];
-  const pctChange = ((newest - oldest) / oldest) * 100;
-  if (pctChange > 10) return "increasing";
-  if (pctChange < -10) return "decreasing";
-  return "stable";
+// demands is most-recent-first; averages the % change between each consecutive pair,
+// clamped so a single volatile week can't dominate a small sample.
+function averageGrowthRate(demands: number[]): number {
+  if (demands.length < 2) return 0;
+  const changes: number[] = [];
+  for (let i = 0; i < demands.length - 1; i++) {
+    const newer = demands[i];
+    const older = demands[i + 1];
+    if (older === 0) continue;
+    changes.push((newer - older) / older);
+  }
+  if (changes.length === 0) return 0;
+  const avg = changes.reduce((a, b) => a + b, 0) / changes.length;
+  return Math.max(-MAX_GROWTH_RATE, Math.min(MAX_GROWTH_RATE, avg));
 }
 
 export async function computeRecommendationForProductBatch(
@@ -62,7 +85,7 @@ export async function computeRecommendationForProductBatch(
       ),
     )
     .orderBy(desc(schema.submissions.countDate))
-    .limit(WEEKS_TO_LOOK_BACK);
+    .limit(MAX_HISTORY_WEEKS);
 
   if (rows.length === 0) {
     return {
@@ -70,11 +93,13 @@ export async function computeRecommendationForProductBatch(
       suggestedBakeQty: 0,
       confidence: 0,
       reasoning: {
-        avgBakedQty: null,
-        avgEstimatedDemand: null,
-        stockoutRate: 0,
+        projectedDemand: 0,
+        growthRatePct: 0,
         weeksOfData: 0,
-        trend: "stable",
+        stockoutRate: 0,
+        bufferQty: 0,
+        bufferSource: "fallback",
+        criticalRatio: CRITICAL_RATIO,
       },
     };
   }
@@ -87,6 +112,7 @@ export async function computeRecommendationForProductBatch(
     unsoldQty: r.unsoldQty,
   }));
 
+  // most-recent-first, matching rows' order (desc by countDate)
   const demands = demandInputs
     .map((d) => estimateDemand(d, stockoutFactor))
     .filter((d): d is number => d != null);
@@ -97,62 +123,59 @@ export async function computeRecommendationForProductBatch(
       suggestedBakeQty: 0,
       confidence: 0,
       reasoning: {
-        avgBakedQty: null,
-        avgEstimatedDemand: null,
-        stockoutRate: 0,
+        projectedDemand: 0,
+        growthRatePct: 0,
         weeksOfData: rows.length,
-        trend: "stable",
+        stockoutRate: 0,
+        bufferQty: 0,
+        bufferSource: "fallback",
+        criticalRatio: CRITICAL_RATIO,
       },
     };
   }
 
-  const weights = RECENT_WEIGHTS.slice(0, demands.length);
-  const weightSum = weights.reduce((a, b) => a + b, 0);
-  const weightedAvgDemand =
-    demands.reduce((sum, d, i) => sum + d * weights[i], 0) / weightSum;
+  const trendWeights = RECENT_WEIGHTS.slice(0, Math.min(TREND_WINDOW_WEEKS, demands.length));
+  const trendWeightSum = trendWeights.reduce((a, b) => a + b, 0);
+  const shortTermCenter =
+    demands
+      .slice(0, trendWeights.length)
+      .reduce((sum, d, i) => sum + d * trendWeights[i], 0) / trendWeightSum;
 
-  const bakedQtys = demandInputs
-    .map((d) => d.bakedQty)
-    .filter((b): b is number => b != null);
-  const avgBakedQty =
-    bakedQtys.length > 0
-      ? bakedQtys.reduce((a, b) => a + b, 0) / bakedQtys.length
-      : null;
+  const growthRatePct = averageGrowthRate(demands);
+  const projectedDemand = shortTermCenter * (1 + growthRatePct);
 
   const rate = stockoutRate(demandInputs);
-  const trend = trendDirection(demands);
 
-  let suggestedBakeQty = weightedAvgDemand;
-  let confidence = 80;
-
-  if (rate > 0.5) {
-    suggestedBakeQty *= 1.1;
-    confidence -= 20;
+  let bufferQty: number;
+  let bufferSource: "historical" | "fallback";
+  if (demands.length < 2) {
+    bufferQty = shortTermCenter * FALLBACK_BUFFER_PCT;
+    bufferSource = "fallback";
+  } else {
+    const mean = demands.reduce((a, b) => a + b, 0) / demands.length;
+    const deviations = demands.map((d) => d - mean).sort((a, b) => a - b);
+    bufferQty = Math.max(0, quantile(deviations, CRITICAL_RATIO));
+    bufferSource = "historical";
   }
 
-  if (trend === "increasing") {
-    suggestedBakeQty *= 1.05;
-    confidence -= 5;
-  } else if (trend === "decreasing") {
-    suggestedBakeQty *= 0.95;
-  }
-
-  if (rows.length < WEEKS_TO_LOOK_BACK) {
-    confidence -= (WEEKS_TO_LOOK_BACK - rows.length) * 10;
-  }
-
-  confidence = Math.max(0, Math.min(100, confidence));
+  const suggestedBakeQty = Math.ceil(projectedDemand + bufferQty);
+  const confidence = Math.min(
+    100,
+    Math.round((demands.length / MAX_HISTORY_WEEKS) * 100),
+  );
 
   return {
     productBatchId,
-    suggestedBakeQty: Math.ceil(suggestedBakeQty),
+    suggestedBakeQty,
     confidence,
     reasoning: {
-      avgBakedQty,
-      avgEstimatedDemand: Math.round(weightedAvgDemand * 100) / 100,
-      stockoutRate: Math.round(rate * 100) / 100,
+      projectedDemand: Math.round(projectedDemand * 100) / 100,
+      growthRatePct: Math.round(growthRatePct * 10000) / 100,
       weeksOfData: rows.length,
-      trend,
+      stockoutRate: Math.round(rate * 100) / 100,
+      bufferQty: Math.round(bufferQty * 100) / 100,
+      bufferSource,
+      criticalRatio: CRITICAL_RATIO,
     },
   };
 }

@@ -26,11 +26,11 @@ async function main() {
     console.log(
       `${pb.displayName} (${pb.batchLabel})`.padEnd(40),
       `suggest=${result.suggestedBakeQty}`.padEnd(12),
-      `conf=${result.confidence}`.padEnd(10),
-      `avgBaked=${result.reasoning.avgBakedQty}`.padEnd(16),
-      `avgDemand=${result.reasoning.avgEstimatedDemand}`.padEnd(16),
+      `weeksOfData=${result.reasoning.weeksOfData}`.padEnd(14),
+      `projectedDemand=${result.reasoning.projectedDemand}`.padEnd(20),
+      `growthRatePct=${result.reasoning.growthRatePct}`.padEnd(18),
       `stockoutRate=${result.reasoning.stockoutRate}`.padEnd(16),
-      `trend=${result.reasoning.trend}`,
+      `buffer=${result.reasoning.bufferQty}(${result.reasoning.bufferSource})`,
     );
   }
 

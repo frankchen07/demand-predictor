@@ -8,12 +8,6 @@ const BUSINESS_SLUG = "midwife-and-baker";
 
 export const dynamic = "force-dynamic";
 
-function confidenceColor(confidence: number) {
-  if (confidence >= 70) return "bg-green-100 text-green-800";
-  if (confidence >= 40) return "bg-yellow-100 text-yellow-800";
-  return "bg-red-100 text-red-800";
-}
-
 export default async function Home() {
   const [business] = await db
     .select()
@@ -39,7 +33,6 @@ export default async function Home() {
     ? await db
         .select({
           suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
-          confidence: schema.recommendationLineItems.confidence,
           reasoning: schema.recommendationLineItems.reasoning,
           displayName: schema.products.displayName,
           category: schema.products.category,
@@ -90,31 +83,31 @@ export default async function Home() {
                 <th className="px-3 py-2">Batch</th>
                 <th className="px-3 py-2 text-right">Bake</th>
                 <th className="px-3 py-2 text-right">
-                  Confidence
-                  <InfoTooltip text="Starts at 80%. -20 if this item stocked out more than half the time recently, -5 if demand's trending up, and -10 for every week of history short of our usual 3-week lookback. Lower confidence means less history or noisier data to go on." />
+                  History
+                  <InfoTooltip text="How many weeks of confirmed history this estimate is based on (capped at 12). Not a judgment on quality — just how much data backs the number." />
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {lineItems.map((item, i) => (
-                <tr key={i}>
-                  <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
-                  <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
-                  <td className="px-3 py-2 text-right font-medium text-zinc-900">
-                    {item.suggestedBakeQty}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${confidenceColor(
-                        Number(item.confidence),
-                      )}`}
+              {lineItems.map((item, i) => {
+                const weeksOfData =
+                  (item.reasoning as { weeksOfData?: number } | null)?.weeksOfData ?? 0;
+                return (
+                  <tr key={i}>
+                    <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
+                    <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
+                    <td className="px-3 py-2 text-right font-medium text-zinc-900">
+                      {item.suggestedBakeQty}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-right text-zinc-500"
                       title={JSON.stringify(item.reasoning)}
                     >
-                      {Math.round(Number(item.confidence))}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      {weeksOfData} wk{weeksOfData === 1 ? "" : "s"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
