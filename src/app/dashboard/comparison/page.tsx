@@ -2,7 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
-import { wasteRatePct, stockoutRate, formatTime, withHoursToSellOut } from "@/lib/demand-calc";
+import { wasteRatePct, stockoutRate, formatTime } from "@/lib/demand-calc";
 import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
@@ -23,55 +23,13 @@ export default async function ComparisonPage() {
     );
   }
 
-  const businessBatchTypes = await db
-    .select({ sequence: schema.batchTypes.sequence })
-    .from(schema.batchTypes)
-    .where(eq(schema.batchTypes.businessId, business.id));
-  const firstSequence = Math.min(...businessBatchTypes.map((b) => b.sequence));
-
-  const [latestRecommendation] = await db
-    .select()
-    .from(schema.recommendations)
-    .where(eq(schema.recommendations.businessId, business.id))
-    .orderBy(desc(schema.recommendations.computedAt))
-    .limit(1);
-
-  const pendingLineItems = latestRecommendation
-    ? await db
-        .select({
-          suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
-          reasoning: schema.recommendationLineItems.reasoning,
-          displayName: schema.products.displayName,
-          batchLabel: schema.batchTypes.label,
-          batchSequence: schema.batchTypes.sequence,
-        })
-        .from(schema.recommendationLineItems)
-        .innerJoin(
-          schema.productBatches,
-          eq(schema.recommendationLineItems.productBatchId, schema.productBatches.id),
-        )
-        .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
-        .innerJoin(
-          schema.batchTypes,
-          eq(schema.productBatches.batchTypeId, schema.batchTypes.id),
-        )
-        .where(eq(schema.recommendationLineItems.recommendationId, latestRecommendation.id))
-        .orderBy(schema.products.displayName, schema.batchTypes.sequence)
-    : [];
-
-  const maxPendingQty = Math.max(1, ...pendingLineItems.map((li) => li.suggestedBakeQty));
-
-  const rawComparisonRows = await db
+  const comparisonRows = await db
     .select({
       recommendedQty: schema.comparisonLineItems.recommendedQty,
       actualBakedQty: schema.comparisonLineItems.actualBakedQty,
       actualUnsoldQty: schema.comparisonLineItems.actualUnsoldQty,
-      varianceQty: schema.comparisonLineItems.varianceQty,
-      variancePct: schema.comparisonLineItems.variancePct,
-      reasoning: schema.recommendationLineItems.reasoning,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
       countDate: schema.submissions.countDate,
-      productId: schema.products.id,
       displayName: schema.products.displayName,
       batchLabel: schema.batchTypes.label,
       batchSequence: schema.batchTypes.sequence,
@@ -87,13 +45,6 @@ export default async function ComparisonPage() {
     )
     .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
     .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
-    .innerJoin(
-      schema.recommendationLineItems,
-      and(
-        eq(schema.comparisonLineItems.recommendationId, schema.recommendationLineItems.recommendationId),
-        eq(schema.comparisonLineItems.productBatchId, schema.recommendationLineItems.productBatchId),
-      ),
-    )
     .leftJoin(
       schema.submissionLineItems,
       and(
@@ -107,19 +58,6 @@ export default async function ComparisonPage() {
       schema.products.displayName,
       schema.batchTypes.sequence,
     );
-
-  const comparisonRows = withHoursToSellOut(
-    rawComparisonRows.map((row) => ({
-      ...row,
-      groupKey: `${row.countDate}:${row.productId}`,
-      isFirstBake: row.batchSequence === firstSequence,
-    })),
-  );
-
-  const maxCompositionQty = Math.max(
-    1,
-    ...comparisonRows.flatMap((row) => [row.recommendedQty, row.actualBakedQty ?? 0]),
-  );
 
   const confirmedSubmissions = await db
     .select({ id: schema.submissions.id, countDate: schema.submissions.countDate })
@@ -155,77 +93,10 @@ export default async function ComparisonPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">Data views</h1>
-      <p className="mt-1 text-sm text-zinc-500">
-        How this week&apos;s recommendation was built, recommended vs. actual, and waste
-        over time
-      </p>
+      <p className="mt-1 text-sm text-zinc-500">End of day comparison and trends over time</p>
 
       <section className="mt-8">
-        <h2 className="text-lg font-medium text-zinc-900">
-          How it was built
-          {latestRecommendation ? ` — ${latestRecommendation.recommendationDate}` : ""}
-        </h2>
-        {!latestRecommendation ? (
-          <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
-            No recommendation yet. Generate one from the home page.
-          </p>
-        ) : (
-          <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[520px] text-sm">
-              <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
-                <tr>
-                  <th className="px-3 py-2">Product</th>
-                  <th className="px-3 py-2">Batch</th>
-                  <th className="px-3 py-2">
-                    Composition
-                    <InfoTooltip text="Gray = projected demand, amber = buffer added on top (faded if it's a fallback guess, not measured history)." />
-                  </th>
-                  <th className="px-3 py-2 text-right">Bake</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {pendingLineItems.map((item, i) => {
-                  const reasoning = item.reasoning as {
-                    projectedDemand?: number;
-                    bufferQty?: number;
-                    bufferSource?: string;
-                  } | null;
-                  const projectedDemand = reasoning?.projectedDemand ?? 0;
-                  const bufferQty = reasoning?.bufferQty ?? 0;
-                  const isFallbackBuffer = reasoning?.bufferSource === "fallback";
-                  return (
-                    <tr key={i}>
-                      <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
-                      <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
-                      <td className="px-3 py-2">
-                        <div className="relative h-4 w-[140px] rounded-sm bg-zinc-100">
-                          <div
-                            className="absolute inset-y-0 left-0 bg-zinc-400"
-                            style={{ width: `${(projectedDemand / maxPendingQty) * 100}%` }}
-                          />
-                          <div
-                            className={`absolute inset-y-0 bg-amber-400 ${isFallbackBuffer ? "opacity-40" : ""}`}
-                            style={{
-                              left: `${(projectedDemand / maxPendingQty) * 100}%`,
-                              width: `${(bufferQty / maxPendingQty) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right font-medium text-zinc-900">
-                        {item.suggestedBakeQty}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-medium text-zinc-900">Recommended vs. actual</h2>
+        <h2 className="text-lg font-medium text-zinc-900">End of Day Comparison</h2>
         {comparisonRows.length === 0 ? (
           <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
             No comparisons yet. This fills in automatically once a confirmed submission&apos;s
@@ -234,119 +105,35 @@ export default async function ComparisonPage() {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[1160px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Product</th>
                   <th className="px-3 py-2">Batch</th>
-                  <th className="px-3 py-2">
-                    How it was built
-                    <InfoTooltip text="Gray = projected demand, amber = buffer added on top (faded if it's a fallback guess, not measured history). Dark tick = actual baked. Green dot = actual demand (baked − unsold)." />
-                  </th>
                   <th className="px-3 py-2 text-right">Recommended</th>
                   <th className="px-3 py-2 text-right">Actual</th>
-                  <th className="px-3 py-2 text-right">
-                    Variance
-                    <InfoTooltip text="Actual baked minus recommended, and that difference as a % of the recommendation. Positive means you baked more than recommended." />
-                  </th>
                   <th className="px-3 py-2 text-right">
                     Sold out at
                     <InfoTooltip text="When this item ran out that day, if it did." />
                   </th>
-                  <th className="px-3 py-2 text-right">
-                    Hours to sell
-                    <InfoTooltip text="How long it took to sell out — from store open (7 AM) for the first bake of the day, or from when the previous bake of the same product sold out, for a topup." />
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    Avg sell rate
-                    <InfoTooltip text="Baked pieces ÷ hours to sell — roughly how many pieces per hour this item moved. Higher means it sold faster." />
-                  </th>
-                  <th className="px-3 py-2 text-right">
-                    % waste
-                    <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
-                  </th>
+                  <th className="px-3 py-2 text-right">Unsold</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {comparisonRows.map((row, i) => {
-                  const reasoning = row.reasoning as {
-                    projectedDemand?: number;
-                    bufferQty?: number;
-                    bufferSource?: string;
-                  } | null;
-                  const projectedDemand = reasoning?.projectedDemand ?? 0;
-                  const bufferQty = reasoning?.bufferQty ?? 0;
-                  const isFallbackBuffer = reasoning?.bufferSource === "fallback";
-                  // unsold can exceed baked when leftovers get logged against a 0-baked
-                  // topup row instead of the batch that actually produced them (see
-                  // estimateDemand in demand-calc.ts) — demand is never negative
-                  const actualSoldQty =
-                    row.actualBakedQty != null && row.actualUnsoldQty != null
-                      ? Math.max(0, row.actualBakedQty - row.actualUnsoldQty)
-                      : null;
-                  return (
-                    <tr key={i}>
-                      <td className="px-3 py-2 text-zinc-500">{row.countDate}</td>
-                      <td className="px-3 py-2 text-zinc-900">{row.displayName}</td>
-                      <td className="px-3 py-2 text-zinc-500">{row.batchLabel}</td>
-                      <td className="px-3 py-2">
-                        <div className="relative h-4 w-[140px] rounded-sm bg-zinc-100">
-                          <div
-                            className="absolute inset-y-0 left-0 bg-zinc-400"
-                            style={{ width: `${(projectedDemand / maxCompositionQty) * 100}%` }}
-                          />
-                          <div
-                            className={`absolute inset-y-0 bg-amber-400 ${isFallbackBuffer ? "opacity-40" : ""}`}
-                            style={{
-                              left: `${(projectedDemand / maxCompositionQty) * 100}%`,
-                              width: `${(bufferQty / maxCompositionQty) * 100}%`,
-                            }}
-                          />
-                          {row.actualBakedQty != null && (
-                            <div
-                              className="absolute inset-y-0 w-px bg-zinc-900"
-                              style={{ left: `${(row.actualBakedQty / maxCompositionQty) * 100}%` }}
-                            />
-                          )}
-                          {actualSoldQty != null && (
-                            <div
-                              className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 -translate-x-1/2 rounded-full bg-emerald-500"
-                              style={{ left: `${(actualSoldQty / maxCompositionQty) * 100}%` }}
-                            />
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right">{row.recommendedQty}</td>
-                      <td className="px-3 py-2 text-right">{row.actualBakedQty ?? "—"}</td>
-                      <td className="px-3 py-2 text-right">
-                        {row.varianceQty == null
-                          ? "—"
-                          : `${row.varianceQty > 0 ? "+" : ""}${row.varianceQty} (${Number(
-                              row.variancePct,
-                            ).toFixed(0)}%)`}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {row.hoursToSellOut == null ? "—" : `${row.hoursToSellOut.toFixed(1)} hrs`}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {row.actualBakedQty != null &&
-                        row.hoursToSellOut != null &&
-                        row.hoursToSellOut > 0
-                          ? `${(row.actualBakedQty / row.hoursToSellOut).toFixed(1)}/hr`
-                          : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        {row.actualBakedQty != null && row.actualBakedQty > 0
-                          ? `${(((row.actualUnsoldQty ?? 0) / row.actualBakedQty) * 100).toFixed(1)}%`
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {comparisonRows.map((row, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-2 text-zinc-500">{row.countDate}</td>
+                    <td className="px-3 py-2 text-zinc-900">{row.displayName}</td>
+                    <td className="px-3 py-2 text-zinc-500">{row.batchLabel}</td>
+                    <td className="px-3 py-2 text-right">{row.recommendedQty}</td>
+                    <td className="px-3 py-2 text-right">{row.actualBakedQty ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right">{row.actualUnsoldQty ?? "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -354,8 +141,8 @@ export default async function ComparisonPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-medium text-zinc-900">Rates over time</h2>
-        <p className="mt-1 text-sm text-zinc-500">Click a date for the per-product breakdown.</p>
+        <h2 className="text-lg font-medium text-zinc-900">Trends</h2>
+        <p className="mt-1 text-sm text-zinc-500">Click a date for the per-week breakdown.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
           <table className="w-full min-w-[420px] text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
