@@ -12,6 +12,12 @@ const SOURCE_LABEL: Record<string, string> = {
   api: "API",
 };
 
+function formatDateTime(date: Date, timeZone: string): string {
+  const datePart = date.toLocaleDateString("en-CA", { timeZone }); // en-CA gives YYYY-MM-DD
+  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+  return `${datePart} ${timePart}`;
+}
+
 export default async function SubmissionsPage() {
   const [business] = await db
     .select()
@@ -48,6 +54,7 @@ export default async function SubmissionsPage() {
               <th className="px-3 py-2">Source</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Reviewed by</th>
+              <th className="px-3 py-2">Last modified</th>
               <th className="px-3 py-2">Photo</th>
               <th className="px-3 py-2"></th>
             </tr>
@@ -61,6 +68,9 @@ export default async function SubmissionsPage() {
                   {s.status === "confirmed" ? "Confirmed" : "Draft"}
                 </td>
                 <td className="px-3 py-2 text-zinc-500">{s.reviewedBy ?? "—"}</td>
+                <td className="px-3 py-2 text-zinc-500">
+                  {formatDateTime(s.updatedAt, business.timezone)}
+                </td>
                 <td className="px-3 py-2">
                   {s.photoUrl ? (
                     "Yes"

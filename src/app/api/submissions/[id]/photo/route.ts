@@ -16,7 +16,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "submission not found" }, { status: 404 });
   }
 
-  await db.update(schema.submissions).set({ photoUrl: publicUrl }).where(eq(schema.submissions.id, id));
+  await db
+    .update(schema.submissions)
+    .set({ photoUrl: publicUrl, updatedAt: new Date() })
+    .where(eq(schema.submissions.id, id));
 
   return NextResponse.json({ ok: true });
 }

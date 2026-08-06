@@ -61,7 +61,12 @@ export async function POST(
 
   await db
     .update(schema.submissions)
-    .set({ status: "confirmed", reviewedBy: reviewedBy.trim(), reviewedAt: new Date() })
+    .set({
+      status: "confirmed",
+      reviewedBy: reviewedBy.trim(),
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(schema.submissions.id, id));
 
   await populateComparisonLineItems(submission.businessId, submission.countDate, submission.id);
