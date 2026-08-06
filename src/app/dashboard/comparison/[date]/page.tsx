@@ -65,7 +65,6 @@ export default async function ComparisonDayPage({
     .select({
       productBatchId: schema.submissionLineItems.productBatchId,
       productId: schema.products.id,
-      bakedQty: schema.submissionLineItems.bakedQty,
       adjustmentQty: schema.submissionLineItems.adjustmentQty,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
       unsoldQty: schema.submissionLineItems.unsoldQty,
@@ -112,8 +111,23 @@ export default async function ComparisonDayPage({
     : [];
   const recommendedByBatch = new Map(recLineItems.map((r) => [r.productBatchId, r.suggestedBakeQty]));
 
-  const totalWastePct = wasteRatePct(submissionLineItems);
-  const totalStockoutPct = stockoutRate(submissionLineItems) * 100;
+  // Baked isn't independently recorded — the baker gets a printed recommendation,
+  // bakes it, then notes an adjustment (+/-) at end of day. True baked total is
+  // recommended + adjustment; if there's no recommendation to add the adjustment to,
+  // it can't be derived (shows "—"), not silently guessed.
+  const itemsWithResolvedBaked = submissionLineItems.map((item) => {
+    const recommendedQty = recommendedByBatch.get(item.productBatchId) ?? null;
+    const resolvedBakedQty =
+      recommendedQty != null ? recommendedQty + (item.adjustmentQty ?? 0) : null;
+    return { ...item, recommendedQty, resolvedBakedQty };
+  });
+
+  const metricsInputs = itemsWithResolvedBaked.map((item) => ({
+    ...item,
+    bakedQty: item.resolvedBakedQty,
+  }));
+  const totalWastePct = wasteRatePct(metricsInputs);
+  const totalStockoutPct = stockoutRate(metricsInputs) * 100;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
@@ -121,12 +135,13 @@ export default async function ComparisonDayPage({
       <p className="mt-1 text-sm text-zinc-500">Per-product breakdown for this count date</p>
 
       <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
-        <table className="w-full min-w-[1050px] text-sm">
+        <table className="w-full min-w-[1120px] text-sm">
           <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-3 py-2">Product</th>
               <th className="px-3 py-2">Batch</th>
               <th className="px-3 py-2 text-right">Recommended</th>
+              <th className="px-3 py-2 text-right">+/-</th>
               <th className="px-3 py-2 text-right">Baked</th>
               <th className="px-3 py-2 text-right">Unsold</th>
               <th className="px-3 py-2 text-right">
@@ -152,21 +167,26 @@ export default async function ComparisonDayPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {submissionLineItems.map((item) => {
+            {itemsWithResolvedBaked.map((item) => {
               const rowWastePct =
-                item.bakedQty != null && item.bakedQty > 0
-                  ? ((item.unsoldQty ?? 0) / item.bakedQty) * 100
+                item.resolvedBakedQty != null && item.resolvedBakedQty > 0
+                  ? ((item.unsoldQty ?? 0) / item.resolvedBakedQty) * 100
                   : null;
               return (
                 <tr key={item.productBatchId}>
                   <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
                   <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
+                  <td className="px-3 py-2 text-right">{item.recommendedQty ?? "—"}</td>
                   <td className="px-3 py-2 text-right">
-                    {recommendedByBatch.get(item.productBatchId) ?? "—"}
+                    {item.adjustmentQty == null
+                      ? "—"
+                      : `${item.adjustmentQty > 0 ? "+" : ""}${item.adjustmentQty}`}
                   </td>
-                  <td className="px-3 py-2 text-right">{item.bakedQty ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">{item.resolvedBakedQty ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{item.unsoldQty ?? "—"}</td>
-                  <td className="px-3 py-2 text-right">{didStockOut(item) ? "Yes" : "No"}</td>
+                  <td className="px-3 py-2 text-right">
+                    {didStockOut({ ...item, bakedQty: item.resolvedBakedQty }) ? "Yes" : "No"}
+                  </td>
                   <td className="px-3 py-2 text-right">
                     {item.timeSoldOut ? formatTime(item.timeSoldOut) : "—"}
                   </td>
@@ -174,8 +194,10 @@ export default async function ComparisonDayPage({
                     {item.hoursToSellOut == null ? "—" : `${item.hoursToSellOut.toFixed(1)} hrs`}
                   </td>
                   <td className="px-3 py-2 text-right">
-                    {item.bakedQty != null && item.hoursToSellOut != null && item.hoursToSellOut > 0
-                      ? `${(item.bakedQty / item.hoursToSellOut).toFixed(1)}/hr`
+                    {item.resolvedBakedQty != null &&
+                    item.hoursToSellOut != null &&
+                    item.hoursToSellOut > 0
+                      ? `${(item.resolvedBakedQty / item.hoursToSellOut).toFixed(1)}/hr`
                       : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -187,7 +209,7 @@ export default async function ComparisonDayPage({
           </tbody>
           <tfoot className="border-t border-zinc-200 bg-zinc-50">
             <tr>
-              <td className="px-3 py-2 font-medium text-zinc-900" colSpan={5}>
+              <td className="px-3 py-2 font-medium text-zinc-900" colSpan={6}>
                 Total
               </td>
               <td className="px-3 py-2 text-right font-medium text-zinc-900">
