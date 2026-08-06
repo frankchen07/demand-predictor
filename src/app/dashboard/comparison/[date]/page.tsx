@@ -48,7 +48,7 @@ export default async function ComparisonDayPage({
         </p>
         <div className="mt-6">
           <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
-            ← Back to comparison
+            ← Back to data views
           </Link>
         </div>
       </main>
@@ -204,7 +204,7 @@ export default async function ComparisonDayPage({
 
       <div className="mt-8">
         <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to comparison
+          ← Back to data views
         </Link>
       </div>
     </main>

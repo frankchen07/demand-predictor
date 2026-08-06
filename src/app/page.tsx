@@ -2,7 +2,6 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { GenerateRecommendationForm } from "./generate-recommendation-form";
-import { InfoTooltip } from "./info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -33,7 +32,6 @@ export default async function Home() {
     ? await db
         .select({
           suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
-          reasoning: schema.recommendationLineItems.reasoning,
           displayName: schema.products.displayName,
           category: schema.products.category,
           batchLabel: schema.batchTypes.label,
@@ -82,32 +80,18 @@ export default async function Home() {
                 <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">Batch</th>
                 <th className="px-3 py-2 text-right">Bake</th>
-                <th className="px-3 py-2 text-right">
-                  History
-                  <InfoTooltip text="How many weeks of confirmed history this estimate is based on (capped at 12). Not a judgment on quality — just how much data backs the number." />
-                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {lineItems.map((item, i) => {
-                const weeksOfData =
-                  (item.reasoning as { weeksOfData?: number } | null)?.weeksOfData ?? 0;
-                return (
-                  <tr key={i}>
-                    <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
-                    <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
-                    <td className="px-3 py-2 text-right font-medium text-zinc-900">
-                      {item.suggestedBakeQty}
-                    </td>
-                    <td
-                      className="px-3 py-2 text-right text-zinc-500"
-                      title={JSON.stringify(item.reasoning)}
-                    >
-                      {weeksOfData} wk{weeksOfData === 1 ? "" : "s"}
-                    </td>
-                  </tr>
-                );
-              })}
+              {lineItems.map((item, i) => (
+                <tr key={i}>
+                  <td className="px-3 py-2 text-zinc-900">{item.displayName}</td>
+                  <td className="px-3 py-2 text-zinc-500">{item.batchLabel}</td>
+                  <td className="px-3 py-2 text-right font-medium text-zinc-900">
+                    {item.suggestedBakeQty}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -128,7 +112,7 @@ export default async function Home() {
           href="/dashboard/comparison"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
         >
-          View comparison
+          Data views
         </a>
         <a
           href="/submissions"

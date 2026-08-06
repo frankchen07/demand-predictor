@@ -36,6 +36,7 @@ export default async function ComparisonPage() {
       actualUnsoldQty: schema.comparisonLineItems.actualUnsoldQty,
       varianceQty: schema.comparisonLineItems.varianceQty,
       variancePct: schema.comparisonLineItems.variancePct,
+      reasoning: schema.recommendationLineItems.reasoning,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
       countDate: schema.submissions.countDate,
       productId: schema.products.id,
@@ -54,6 +55,13 @@ export default async function ComparisonPage() {
     )
     .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
     .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
+    .innerJoin(
+      schema.recommendationLineItems,
+      and(
+        eq(schema.comparisonLineItems.recommendationId, schema.recommendationLineItems.recommendationId),
+        eq(schema.comparisonLineItems.productBatchId, schema.recommendationLineItems.productBatchId),
+      ),
+    )
     .leftJoin(
       schema.submissionLineItems,
       and(
@@ -74,6 +82,11 @@ export default async function ComparisonPage() {
       groupKey: `${row.countDate}:${row.productId}`,
       isFirstBake: row.batchSequence === firstSequence,
     })),
+  );
+
+  const maxCompositionQty = Math.max(
+    1,
+    ...comparisonRows.flatMap((row) => [row.recommendedQty, row.actualBakedQty ?? 0]),
   );
 
   const confirmedSubmissions = await db
@@ -109,8 +122,10 @@ export default async function ComparisonPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
-      <h1 className="text-2xl font-semibold text-zinc-900">Comparison</h1>
-      <p className="mt-1 text-sm text-zinc-500">Recommended vs. actual, and waste over time</p>
+      <h1 className="text-2xl font-semibold text-zinc-900">Data views</h1>
+      <p className="mt-1 text-sm text-zinc-500">
+        Recommended vs. actual, how recommendations were built, and waste over time
+      </p>
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-zinc-900">Recommended vs. actual</h2>
@@ -122,12 +137,16 @@ export default async function ComparisonPage() {
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[1000px] text-sm">
+            <table className="w-full min-w-[1160px] text-sm">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Product</th>
                   <th className="px-3 py-2">Batch</th>
+                  <th className="px-3 py-2">
+                    How it was built
+                    <InfoTooltip text="Gray = projected demand, amber = buffer added on top (faded if it's a fallback guess, not measured history). Dark tick = actual baked. Green dot = actual demand (baked − unsold)." />
+                  </th>
                   <th className="px-3 py-2 text-right">Recommended</th>
                   <th className="px-3 py-2 text-right">Actual</th>
                   <th className="px-3 py-2 text-right">
@@ -153,40 +172,84 @@ export default async function ComparisonPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {comparisonRows.map((row, i) => (
-                  <tr key={i}>
-                    <td className="px-3 py-2 text-zinc-500">{row.countDate}</td>
-                    <td className="px-3 py-2 text-zinc-900">{row.displayName}</td>
-                    <td className="px-3 py-2 text-zinc-500">{row.batchLabel}</td>
-                    <td className="px-3 py-2 text-right">{row.recommendedQty}</td>
-                    <td className="px-3 py-2 text-right">{row.actualBakedQty ?? "—"}</td>
-                    <td className="px-3 py-2 text-right">
-                      {row.varianceQty == null
-                        ? "—"
-                        : `${row.varianceQty > 0 ? "+" : ""}${row.varianceQty} (${Number(
-                            row.variancePct,
-                          ).toFixed(0)}%)`}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {row.hoursToSellOut == null ? "—" : `${row.hoursToSellOut.toFixed(1)} hrs`}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {row.actualBakedQty != null &&
-                      row.hoursToSellOut != null &&
-                      row.hoursToSellOut > 0
-                        ? `${(row.actualBakedQty / row.hoursToSellOut).toFixed(1)}/hr`
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {row.actualBakedQty != null && row.actualBakedQty > 0
-                        ? `${(((row.actualUnsoldQty ?? 0) / row.actualBakedQty) * 100).toFixed(1)}%`
-                        : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {comparisonRows.map((row, i) => {
+                  const reasoning = row.reasoning as {
+                    projectedDemand?: number;
+                    bufferQty?: number;
+                    bufferSource?: string;
+                  } | null;
+                  const projectedDemand = reasoning?.projectedDemand ?? 0;
+                  const bufferQty = reasoning?.bufferQty ?? 0;
+                  const isFallbackBuffer = reasoning?.bufferSource === "fallback";
+                  // unsold can exceed baked when leftovers get logged against a 0-baked
+                  // topup row instead of the batch that actually produced them (see
+                  // estimateDemand in demand-calc.ts) — demand is never negative
+                  const actualSoldQty =
+                    row.actualBakedQty != null && row.actualUnsoldQty != null
+                      ? Math.max(0, row.actualBakedQty - row.actualUnsoldQty)
+                      : null;
+                  return (
+                    <tr key={i}>
+                      <td className="px-3 py-2 text-zinc-500">{row.countDate}</td>
+                      <td className="px-3 py-2 text-zinc-900">{row.displayName}</td>
+                      <td className="px-3 py-2 text-zinc-500">{row.batchLabel}</td>
+                      <td className="px-3 py-2">
+                        <div className="relative h-4 w-[140px] rounded-sm bg-zinc-100">
+                          <div
+                            className="absolute inset-y-0 left-0 bg-zinc-400"
+                            style={{ width: `${(projectedDemand / maxCompositionQty) * 100}%` }}
+                          />
+                          <div
+                            className={`absolute inset-y-0 bg-amber-400 ${isFallbackBuffer ? "opacity-40" : ""}`}
+                            style={{
+                              left: `${(projectedDemand / maxCompositionQty) * 100}%`,
+                              width: `${(bufferQty / maxCompositionQty) * 100}%`,
+                            }}
+                          />
+                          {row.actualBakedQty != null && (
+                            <div
+                              className="absolute inset-y-0 w-px bg-zinc-900"
+                              style={{ left: `${(row.actualBakedQty / maxCompositionQty) * 100}%` }}
+                            />
+                          )}
+                          {actualSoldQty != null && (
+                            <div
+                              className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 -translate-x-1/2 rounded-full bg-emerald-500"
+                              style={{ left: `${(actualSoldQty / maxCompositionQty) * 100}%` }}
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right">{row.recommendedQty}</td>
+                      <td className="px-3 py-2 text-right">{row.actualBakedQty ?? "—"}</td>
+                      <td className="px-3 py-2 text-right">
+                        {row.varianceQty == null
+                          ? "—"
+                          : `${row.varianceQty > 0 ? "+" : ""}${row.varianceQty} (${Number(
+                              row.variancePct,
+                            ).toFixed(0)}%)`}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {row.timeSoldOut ? formatTime(row.timeSoldOut) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {row.hoursToSellOut == null ? "—" : `${row.hoursToSellOut.toFixed(1)} hrs`}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {row.actualBakedQty != null &&
+                        row.hoursToSellOut != null &&
+                        row.hoursToSellOut > 0
+                          ? `${(row.actualBakedQty / row.hoursToSellOut).toFixed(1)}/hr`
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {row.actualBakedQty != null && row.actualBakedQty > 0
+                          ? `${(((row.actualUnsoldQty ?? 0) / row.actualBakedQty) * 100).toFixed(1)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
