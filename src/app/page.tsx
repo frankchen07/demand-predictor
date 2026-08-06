@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { GenerateRecommendationForm } from "./generate-recommendation-form";
@@ -21,12 +21,38 @@ export default async function Home() {
     );
   }
 
-  const [latestRecommendation] = await db
-    .select()
+  // "Current" is the oldest recommendation nobody's confirmed a submission against
+  // yet, not just whatever was generated most recently — otherwise deleting a
+  // confirmed submission wouldn't reopen it as the active one to bake against.
+  const [unfulfilledRecommendation] = await db
+    .select({
+      id: schema.recommendations.id,
+      recommendationDate: schema.recommendations.recommendationDate,
+    })
     .from(schema.recommendations)
-    .where(eq(schema.recommendations.businessId, business.id))
-    .orderBy(desc(schema.recommendations.computedAt))
+    .leftJoin(
+      schema.submissions,
+      and(
+        eq(schema.submissions.businessId, schema.recommendations.businessId),
+        eq(schema.submissions.countDate, schema.recommendations.recommendationDate),
+        eq(schema.submissions.status, "confirmed"),
+      ),
+    )
+    .where(and(eq(schema.recommendations.businessId, business.id), isNull(schema.submissions.id)))
+    .orderBy(asc(schema.recommendations.recommendationDate))
     .limit(1);
+
+  const [latestRecommendation] = unfulfilledRecommendation
+    ? [unfulfilledRecommendation]
+    : await db
+        .select({
+          id: schema.recommendations.id,
+          recommendationDate: schema.recommendations.recommendationDate,
+        })
+        .from(schema.recommendations)
+        .where(eq(schema.recommendations.businessId, business.id))
+        .orderBy(desc(schema.recommendations.computedAt))
+        .limit(1);
 
   const lineItems = latestRecommendation
     ? await db

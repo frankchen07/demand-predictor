@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { AttachPhotoForm } from "./attach-photo-form";
 import { RemovePhotoForm } from "./remove-photo-form";
+import { DeleteSubmissionForm } from "./delete-submission-form";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -86,12 +87,15 @@ export default async function SubmissionsPage() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <Link
-                    href={`/submissions/${s.id}/confirm`}
-                    className="font-medium text-zinc-700 hover:underline"
-                  >
-                    Review / edit
-                  </Link>
+                  <div className="flex flex-col items-end gap-1">
+                    <Link
+                      href={`/submissions/${s.id}/confirm`}
+                      className="font-medium text-zinc-700 hover:underline"
+                    >
+                      Review / edit
+                    </Link>
+                    <DeleteSubmissionForm submissionId={s.id} countDate={s.countDate} />
+                  </div>
                 </td>
               </tr>
             ))}
