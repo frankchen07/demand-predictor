@@ -25,3 +25,16 @@ export async function createSignedUploadUrl(businessSlug: string, filename: stri
 
   return { signedUrl: data.signedUrl, token: data.token, path, publicUrl };
 }
+
+// publicUrl looks like https://.../storage/v1/object/public/submission-photos/<path>.
+// A URL that doesn't match (e.g. a placeholder from manually seeded historical data)
+// has nothing real to delete — the caller still needs to clear the DB field either way.
+export async function deletePhoto(publicUrl: string) {
+  const marker = `/public/${BUCKET}/`;
+  const idx = publicUrl.indexOf(marker);
+  if (idx === -1) return;
+
+  const path = publicUrl.slice(idx + marker.length);
+  const { error } = await getClient().storage.from(BUCKET).remove([path]);
+  if (error) throw error;
+}

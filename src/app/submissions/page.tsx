@@ -3,6 +3,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { AttachPhotoForm } from "./attach-photo-form";
+import { RemovePhotoForm } from "./remove-photo-form";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -75,7 +76,7 @@ export default async function SubmissionsPage() {
                 </td>
                 <td className="px-3 py-2">
                   {s.photoUrl ? (
-                    "Yes"
+                    <RemovePhotoForm submissionId={s.id} />
                   ) : (
                     <AttachPhotoForm
                       submissionId={s.id}
