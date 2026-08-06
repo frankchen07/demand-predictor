@@ -4,12 +4,10 @@ import * as schema from "@/lib/db/schema";
 import { formatTime } from "@/lib/demand-calc";
 import {
   computeRecommendationWalkthrough,
-  type RecommendationResult,
   type RecommendationWalkthrough,
 } from "@/lib/recommendation-engine";
 import { GenerateRecommendationForm } from "./generate-recommendation-form";
 
-type Reasoning = RecommendationResult["reasoning"];
 type WalkthroughWeek = RecommendationWalkthrough["weeklyDemand"][number];
 
 const BUSINESS_SLUG = "midwife-and-baker";
@@ -82,8 +80,6 @@ export default async function Home() {
     ? await db
         .select({
           suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
-          confidence: schema.recommendationLineItems.confidence,
-          reasoning: schema.recommendationLineItems.reasoning,
           displayName: schema.products.displayName,
           category: schema.products.category,
           batchLabel: schema.batchTypes.label,
@@ -106,35 +102,6 @@ export default async function Home() {
         )
         .orderBy(schema.products.displayName, schema.batchTypes.sequence)
     : [];
-
-  const reasonings = lineItems.map((item) => item.reasoning as Reasoning);
-  const howItWasCalculated =
-    reasonings.length > 0
-      ? (() => {
-          const avgGrowthRatePct =
-            reasonings.reduce((sum, r) => sum + r.growthRatePct, 0) / reasonings.length;
-          const weeksOfData = reasonings.map((r) => r.weeksOfData);
-          const avgWeeksOfData =
-            weeksOfData.reduce((sum, w) => sum + w, 0) / weeksOfData.length;
-          const minWeeksOfData = Math.min(...weeksOfData);
-          const maxWeeksOfData = Math.max(...weeksOfData);
-          const fallbackCount = reasonings.filter((r) => r.bufferSource === "fallback").length;
-          const trendLabel =
-            avgGrowthRatePct > 0.5
-              ? `trending up an average of ${avgGrowthRatePct.toFixed(1)}% week over week`
-              : avgGrowthRatePct < -0.5
-                ? `trending down an average of ${Math.abs(avgGrowthRatePct).toFixed(1)}% week over week`
-                : "holding roughly flat week over week";
-          return {
-            avgWeeksOfData,
-            minWeeksOfData,
-            maxWeeksOfData,
-            fallbackCount,
-            totalCount: reasonings.length,
-            trendLabel,
-          };
-        })()
-      : null;
 
   const [walkthroughBatch] = await db
     .select({ id: schema.productBatches.id })
@@ -192,33 +159,6 @@ export default async function Home() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {howItWasCalculated && (
-        <div className="mt-4 rounded-lg border border-zinc-200 p-4 text-sm">
-          <h2 className="font-medium text-zinc-900">How this was calculated</h2>
-          <p className="mt-1 text-zinc-500">
-            Each bake count blends a 3-week recent-sales trend (growth capped at ±30%)
-            with a safety buffer sized so you&apos;re unlikely to sell out — a stockout
-            is treated as roughly twice as costly as unsold waste.
-          </p>
-          <ul className="mt-2 space-y-1 text-zinc-500">
-            <li>Demand trend: {howItWasCalculated.trendLabel}</li>
-            <li>
-              Based on {howItWasCalculated.avgWeeksOfData.toFixed(1)} weeks of history
-              per item on average (range {howItWasCalculated.minWeeksOfData}–
-              {howItWasCalculated.maxWeeksOfData})
-            </li>
-            {howItWasCalculated.fallbackCount > 0 && (
-              <li>
-                {howItWasCalculated.totalCount - howItWasCalculated.fallbackCount} of{" "}
-                {howItWasCalculated.totalCount} items have enough history for a
-                data-driven safety buffer; the rest use a flat 20% buffer until more
-                data comes in
-              </li>
-            )}
-          </ul>
         </div>
       )}
 
