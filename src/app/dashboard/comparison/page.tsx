@@ -93,10 +93,10 @@ export default async function ComparisonPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">Data views</h1>
-      <p className="mt-1 text-sm text-zinc-500">End of day comparison and trends over time</p>
+      <p className="mt-1 text-sm text-zinc-500">Complete table and trends over time</p>
 
       <section className="mt-8">
-        <h2 className="text-lg font-medium text-zinc-900">End of Day Comparison</h2>
+        <h2 className="text-lg font-medium text-zinc-900">Complete table</h2>
         {comparisonRows.length === 0 ? (
           <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
             No comparisons yet. This fills in automatically once a confirmed submission&apos;s

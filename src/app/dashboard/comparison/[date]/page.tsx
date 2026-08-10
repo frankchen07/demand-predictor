@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
@@ -12,6 +12,54 @@ import {
 import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
+
+// Resolves baked qty (recommended + adjustment) per product/batch for a given count
+// date, so it can be diffed against another date without re-fetching everything else.
+async function fetchResolvedBakedByBatch(businessId: string, countDate: string) {
+  const [submission] = await db
+    .select({ id: schema.submissions.id })
+    .from(schema.submissions)
+    .where(and(eq(schema.submissions.businessId, businessId), eq(schema.submissions.countDate, countDate)));
+  if (!submission) return new Map<string, number>();
+
+  const lineItems = await db
+    .select({
+      productBatchId: schema.submissionLineItems.productBatchId,
+      adjustmentQty: schema.submissionLineItems.adjustmentQty,
+    })
+    .from(schema.submissionLineItems)
+    .where(eq(schema.submissionLineItems.submissionId, submission.id));
+
+  const [recommendation] = await db
+    .select({ id: schema.recommendations.id })
+    .from(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.businessId, businessId),
+        eq(schema.recommendations.recommendationDate, countDate),
+      ),
+    );
+
+  const recLineItems = recommendation
+    ? await db
+        .select({
+          productBatchId: schema.recommendationLineItems.productBatchId,
+          suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
+        })
+        .from(schema.recommendationLineItems)
+        .where(eq(schema.recommendationLineItems.recommendationId, recommendation.id))
+    : [];
+  const recommendedByBatch = new Map(recLineItems.map((r) => [r.productBatchId, r.suggestedBakeQty]));
+
+  const resolvedByBatch = new Map<string, number>();
+  for (const item of lineItems) {
+    const recommendedQty = recommendedByBatch.get(item.productBatchId);
+    if (recommendedQty != null) {
+      resolvedByBatch.set(item.productBatchId, recommendedQty + (item.adjustmentQty ?? 0));
+    }
+  }
+  return resolvedByBatch;
+}
 
 export default async function ComparisonDayPage({
   params,
@@ -129,6 +177,32 @@ export default async function ComparisonDayPage({
   const totalWastePct = wasteRatePct(metricsInputs);
   const totalStockoutPct = stockoutRate(metricsInputs) * 100;
 
+  const [priorSubmission] = await db
+    .select({ countDate: schema.submissions.countDate })
+    .from(schema.submissions)
+    .where(
+      and(
+        eq(schema.submissions.businessId, business.id),
+        eq(schema.submissions.status, "confirmed"),
+        lt(schema.submissions.countDate, date),
+      ),
+    )
+    .orderBy(desc(schema.submissions.countDate))
+    .limit(1);
+
+  const priorResolvedByBatch = priorSubmission
+    ? await fetchResolvedBakedByBatch(business.id, priorSubmission.countDate)
+    : new Map<string, number>();
+
+  const itemsWithPriorDelta = itemsWithResolvedBaked.map((item) => {
+    const priorBakedQty = priorResolvedByBatch.get(item.productBatchId) ?? null;
+    const bakedDelta =
+      item.resolvedBakedQty != null && priorBakedQty != null
+        ? item.resolvedBakedQty - priorBakedQty
+        : null;
+    return { ...item, bakedDelta };
+  });
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <h1 className="text-2xl font-semibold text-zinc-900">{date}</h1>
@@ -143,6 +217,16 @@ export default async function ComparisonDayPage({
               <th className="px-3 py-2 text-right">Recommended</th>
               <th className="px-3 py-2 text-right">+/-</th>
               <th className="px-3 py-2 text-right">Baked</th>
+              <th className="px-3 py-2 text-right">
+                vs. prior count
+                <InfoTooltip
+                  text={
+                    priorSubmission
+                      ? `Change in baked qty vs. the previous confirmed count, on ${priorSubmission.countDate}.`
+                      : "Change in baked qty vs. the previous confirmed count. No earlier count exists yet."
+                  }
+                />
+              </th>
               <th className="px-3 py-2 text-right">Unsold</th>
               <th className="px-3 py-2 text-right">
                 Sold out?
@@ -167,7 +251,7 @@ export default async function ComparisonDayPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {itemsWithResolvedBaked.map((item) => {
+            {itemsWithPriorDelta.map((item) => {
               const rowWastePct =
                 item.resolvedBakedQty != null && item.resolvedBakedQty > 0
                   ? ((item.unsoldQty ?? 0) / item.resolvedBakedQty) * 100
@@ -183,6 +267,11 @@ export default async function ComparisonDayPage({
                       : `${item.adjustmentQty > 0 ? "+" : ""}${item.adjustmentQty}`}
                   </td>
                   <td className="px-3 py-2 text-right">{item.resolvedBakedQty ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    {item.bakedDelta == null
+                      ? "—"
+                      : `${item.bakedDelta > 0 ? "+" : ""}${item.bakedDelta}`}
+                  </td>
                   <td className="px-3 py-2 text-right">{item.unsoldQty ?? "—"}</td>
                   <td className="px-3 py-2 text-right">
                     {didStockOut({ ...item, bakedQty: item.resolvedBakedQty }) ? "Yes" : "No"}
@@ -209,7 +298,7 @@ export default async function ComparisonDayPage({
           </tbody>
           <tfoot className="border-t border-zinc-200 bg-zinc-50">
             <tr>
-              <td className="px-3 py-2 font-medium text-zinc-900" colSpan={6}>
+              <td className="px-3 py-2 font-medium text-zinc-900" colSpan={7}>
                 Total
               </td>
               <td className="px-3 py-2 text-right font-medium text-zinc-900">

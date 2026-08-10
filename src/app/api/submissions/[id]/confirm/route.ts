@@ -71,5 +71,5 @@ export async function POST(
 
   await populateComparisonLineItems(submission.businessId, submission.countDate, submission.id);
 
-  redirect("/");
+  redirect("/dashboard/comparison");
 }
