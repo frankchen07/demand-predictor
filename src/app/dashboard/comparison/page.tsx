@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 function formatDeltaPp(delta: number | null, digits: number): string {
   if (delta == null) return "—";
   const sign = delta > 0 ? "+" : "";
-  return `${sign}${delta.toFixed(digits)}pp`;
+  return `${sign}${delta.toFixed(digits)} pp`;
 }
 
 export default async function ComparisonPage() {
