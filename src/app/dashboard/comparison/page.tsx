@@ -49,10 +49,9 @@ export default async function ComparisonPage() {
     })),
   );
 
-  const completeTableRows: (ProductBreakdownRow & { countDate: string })[] = breakdownsByDate.flatMap(
-    ({ countDate, breakdown }) =>
-      (breakdown?.rows ?? []).map((row) => ({ ...row, countDate })),
-  );
+  const latestRun = breakdownsByDate[0];
+  const latestRunRows: (ProductBreakdownRow & { countDate: string })[] =
+    latestRun?.breakdown?.rows.map((row) => ({ ...row, countDate: latestRun.countDate })) ?? [];
 
   const wasteByWeek = breakdownsByDate.map(({ countDate, breakdown }) => ({
     countDate,
@@ -74,7 +73,7 @@ export default async function ComparisonPage() {
 
       <section className="mt-8">
         <h2 className="text-lg font-medium text-zinc-900">Latest Run</h2>
-        {completeTableRows.length === 0 ? (
+        {latestRunRows.length === 0 ? (
           <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
             No confirmed submissions yet.
           </p>
@@ -102,7 +101,7 @@ export default async function ComparisonPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {completeTableRows.map((row, i) => (
+                {latestRunRows.map((row, i) => (
                   <tr key={i}>
                     <td className="whitespace-nowrap px-2 py-1.5 text-zinc-500">{row.countDate}</td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-zinc-900">{row.displayName}</td>
@@ -133,6 +132,22 @@ export default async function ComparisonPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="border-t border-zinc-200 bg-zinc-50">
+                <tr>
+                  <td className="whitespace-nowrap px-2 py-1.5 font-medium text-zinc-900" colSpan={7}>
+                    Total
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
+                    {(latestRun?.breakdown?.totalStockoutPct ?? 0).toFixed(0)}%
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5"></td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
+                    {latestRun?.breakdown?.totalWastePct == null
+                      ? "—"
+                      : `${latestRun.breakdown.totalWastePct.toFixed(1)}%`}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
