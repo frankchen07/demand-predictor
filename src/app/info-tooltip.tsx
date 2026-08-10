@@ -58,7 +58,10 @@ export function InfoTooltip({ text }: { text: string }) {
         <span
           ref={bubbleRef}
           style={{ position: "fixed", top: position.top, left: position.left, width: BUBBLE_WIDTH }}
-          className="z-20 rounded-md bg-zinc-900 px-2.5 py-2 text-left text-xs font-normal normal-case leading-snug text-white shadow-lg"
+          // whitespace-normal overrides the whitespace-nowrap tables inherit down
+          // from their th/td cells — without it this text refuses to wrap and
+          // runs off past its own 192px box.
+          className="z-20 whitespace-normal rounded-md bg-zinc-900 px-2.5 py-2 text-left text-xs font-normal normal-case leading-snug text-white shadow-lg"
         >
           {text}
         </span>
