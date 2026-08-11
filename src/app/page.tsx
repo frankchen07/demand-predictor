@@ -30,7 +30,7 @@ export default async function Home() {
           href="/submissions/upload"
           className="flex w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
         >
-          Upload this week&apos;s results
+          Upload today&apos;s bakery data
         </Link>
         <Link
           href="/dashboard/comparison"
