@@ -41,7 +41,7 @@ async function main() {
     .select()
     .from(schema.submissions)
     .where(
-      and(eq(schema.submissions.businessId, business.id), eq(schema.submissions.countDate, COUNT_DATE)),
+      and(eq(schema.submissions.businessId, business.id), eq(schema.submissions.bakeDate, COUNT_DATE)),
     );
   if (!submission) throw new Error(`no seeded ground-truth submission for ${COUNT_DATE}`);
 

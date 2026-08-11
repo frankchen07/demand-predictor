@@ -95,7 +95,7 @@ export const submissionSourceValues = [
 ] as const;
 export const submissionStatusValues = ["draft", "confirmed"] as const;
 
-// one row per uploaded/confirmed sheet (one per business per count_date)
+// one row per uploaded/confirmed sheet (one per business per bake_date)
 export const submissions = pgTable(
   "submissions",
   {
@@ -103,7 +103,7 @@ export const submissions = pgTable(
     businessId: uuid("business_id")
       .notNull()
       .references(() => businesses.id, { onDelete: "cascade" }),
-    countDate: date("count_date").notNull(),
+    bakeDate: date("count_date").notNull(),
     source: text("source", { enum: submissionSourceValues }).notNull(),
     photoUrl: text("photo_url"),
     // raw vision-API output before human correction — audit trail
@@ -116,7 +116,7 @@ export const submissions = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [unique().on(t.businessId, t.countDate)],
+  (t) => [unique().on(t.businessId, t.bakeDate)],
 );
 
 // one row per product_batch per submission

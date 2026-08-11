@@ -7,7 +7,7 @@ import * as schema from "./db/schema";
 // trigger like recommendation generation.
 export async function populateComparisonLineItems(
   businessId: string,
-  countDate: string,
+  bakeDate: string,
   submissionId: string,
 ) {
   const [recommendation] = await db
@@ -16,7 +16,7 @@ export async function populateComparisonLineItems(
     .where(
       and(
         eq(schema.recommendations.businessId, businessId),
-        eq(schema.recommendations.recommendationDate, countDate),
+        eq(schema.recommendations.recommendationDate, bakeDate),
       ),
     );
   if (!recommendation) return;

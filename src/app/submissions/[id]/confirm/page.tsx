@@ -57,7 +57,7 @@ export default async function ConfirmSubmissionPage({
   return (
     <main className="mx-auto max-w-[1600px] px-4 py-8 pb-24">
       <h1 className="text-xl font-semibold text-zinc-900">
-        {alreadyConfirmed ? "Review sheet" : "Confirm sheet"} — {submission.countDate}
+        {alreadyConfirmed ? "Review sheet" : "Confirm sheet"} — {submission.bakeDate}
       </h1>
       <p className="mt-1 text-sm text-zinc-500">
         {alreadyConfirmed

@@ -14,11 +14,11 @@ type Status = "idle" | "uploading" | "error";
 export function AttachPhotoForm({
   submissionId,
   businessSlug,
-  countDate,
+  bakeDate,
 }: {
   submissionId: string;
   businessSlug: string;
-  countDate: string;
+  bakeDate: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
@@ -34,7 +34,7 @@ export function AttachPhotoForm({
       const urlRes = await fetch("/api/submissions/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessSlug, countDate, contentType: file.type }),
+        body: JSON.stringify({ businessSlug, bakeDate, contentType: file.type }),
       });
       if (!urlRes.ok) {
         throw new Error((await urlRes.json()).error ?? "could not prepare upload");

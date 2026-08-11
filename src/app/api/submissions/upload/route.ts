@@ -12,15 +12,15 @@ function normalizeTime(value: string | null): string | null {
 }
 
 export async function POST(request: Request) {
-  const { businessSlug, countDate, publicUrl, contentType } = await request.json();
+  const { businessSlug, bakeDate, publicUrl, contentType } = await request.json();
 
   if (
     typeof businessSlug !== "string" ||
-    typeof countDate !== "string" ||
+    typeof bakeDate !== "string" ||
     typeof publicUrl !== "string"
   ) {
     return NextResponse.json(
-      { error: "businessSlug, countDate, and publicUrl are required" },
+      { error: "businessSlug, bakeDate, and publicUrl are required" },
       { status: 400 },
     );
   }
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     .insert(schema.submissions)
     .values({
       businessId: business.id,
-      countDate,
+      bakeDate,
       source: "photo_upload",
       photoUrl: publicUrl,
       status: "draft",

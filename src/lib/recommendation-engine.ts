@@ -51,7 +51,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
       adjustmentQty: schema.submissionLineItems.adjustmentQty,
       timeSoldOut: schema.submissionLineItems.timeSoldOut,
       unsoldQty: schema.submissionLineItems.unsoldQty,
-      countDate: schema.submissions.countDate,
+      bakeDate: schema.submissions.bakeDate,
     })
     .from(schema.submissionLineItems)
     .innerJoin(
@@ -65,7 +65,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
         eq(schema.submissions.status, "confirmed"),
       ),
     )
-    .orderBy(desc(schema.submissions.countDate))
+    .orderBy(desc(schema.submissions.bakeDate))
     .limit(MAX_HISTORY_WEEKS);
 
   const stockoutFactor = parseFloat(productBatch.stockoutAdjustmentFactor);
@@ -76,7 +76,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
     unsoldQty: r.unsoldQty,
   }));
 
-  // most-recent-first, matching rows' order (desc by countDate)
+  // most-recent-first, matching rows' order (desc by bakeDate)
   const demands = demandInputs
     .map((d) => estimateDemand(d, stockoutFactor))
     .filter((d): d is number => d != null);
@@ -198,7 +198,7 @@ export async function getNextRecommendationDate(
   businessId: string,
 ): Promise<string> {
   const [latest] = await db
-    .select({ countDate: schema.submissions.countDate })
+    .select({ bakeDate: schema.submissions.bakeDate })
     .from(schema.submissions)
     .where(
       and(
@@ -206,10 +206,10 @@ export async function getNextRecommendationDate(
         eq(schema.submissions.status, "confirmed"),
       ),
     )
-    .orderBy(desc(schema.submissions.countDate))
+    .orderBy(desc(schema.submissions.bakeDate))
     .limit(1);
 
-  const base = latest ? new Date(latest.countDate) : new Date();
+  const base = latest ? new Date(latest.bakeDate) : new Date();
   base.setDate(base.getDate() + 7);
   return base.toISOString().slice(0, 10);
 }

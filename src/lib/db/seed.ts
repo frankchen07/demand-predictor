@@ -117,14 +117,14 @@ async function seed() {
       .insert(schema.submissions)
       .values({
         businessId: business.id,
-        countDate: submission.countDate,
+        bakeDate: submission.bakeDate,
         source: "manual_seed" as const,
         status: "confirmed" as const,
         reviewedBy: "frank",
         reviewedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [schema.submissions.businessId, schema.submissions.countDate],
+        target: [schema.submissions.businessId, schema.submissions.bakeDate],
         set: {
           source: "manual_seed",
           status: "confirmed",
@@ -132,7 +132,7 @@ async function seed() {
         },
       })
       .returning();
-    if (!sub) throw new Error(`Failed to upsert submission ${submission.countDate}`);
+    if (!sub) throw new Error(`Failed to upsert submission ${submission.bakeDate}`);
     submissionCount++;
 
     // Insert/update line items for this submission

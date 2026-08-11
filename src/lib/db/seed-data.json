@@ -41,7 +41,7 @@
   ],
   "submissions": [
     {
-      "countDate": "2026-05-21",
+      "bakeDate": "2026-05-21",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": 10, "notes": null },
@@ -85,7 +85,7 @@
       ]
     },
     {
-      "countDate": "2026-05-28",
+      "bakeDate": "2026-05-28",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": 22, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -129,7 +129,7 @@
       ]
     },
     {
-      "countDate": "2026-06-04",
+      "bakeDate": "2026-06-04",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": "11:24:00", "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -173,7 +173,7 @@
       ]
     },
     {
-      "countDate": "2026-06-11",
+      "bakeDate": "2026-06-11",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": 1, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -217,7 +217,7 @@
       ]
     },
     {
-      "countDate": "2026-06-18",
+      "bakeDate": "2026-06-18",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": "12:40:00", "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -261,7 +261,7 @@
       ]
     },
     {
-      "countDate": "2026-06-25",
+      "bakeDate": "2026-06-25",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": "13:14:00", "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -305,7 +305,7 @@
       ]
     },
     {
-      "countDate": "2026-07-02",
+      "bakeDate": "2026-07-02",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": "13:40:00", "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": "row struck through with a line (not offered)" },
@@ -349,7 +349,7 @@
       ]
     },
     {
-      "countDate": "2026-07-09",
+      "bakeDate": "2026-07-09",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
@@ -393,7 +393,7 @@
       ]
     },
     {
-      "countDate": "2026-07-16",
+      "bakeDate": "2026-07-16",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": 18, "timeSoldOut": null, "unsoldQty": 11, "notes": "+18 adjustment marked on topup row" },
@@ -437,7 +437,7 @@
       ]
     },
     {
-      "countDate": "2026-07-23",
+      "bakeDate": "2026-07-23",
       "lineItems": [
         { "sku": "almond-croissant", "batch": "AM", "bakedQty": 80, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": null, "notes": null },
         { "sku": "almond-croissant", "batch": "Topup", "bakedQty": 0, "adjustmentQty": null, "timeSoldOut": null, "unsoldQty": 9, "notes": null },

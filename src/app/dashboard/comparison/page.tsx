@@ -32,7 +32,7 @@ export default async function ComparisonPage() {
   }
 
   const confirmedSubmissions = await db
-    .select({ id: schema.submissions.id, countDate: schema.submissions.countDate })
+    .select({ id: schema.submissions.id, bakeDate: schema.submissions.bakeDate })
     .from(schema.submissions)
     .where(
       and(
@@ -40,21 +40,21 @@ export default async function ComparisonPage() {
         eq(schema.submissions.status, "confirmed"),
       ),
     )
-    .orderBy(desc(schema.submissions.countDate));
+    .orderBy(desc(schema.submissions.bakeDate));
 
   const breakdownsByDate = await Promise.all(
     confirmedSubmissions.map(async (sub) => ({
-      countDate: sub.countDate,
-      breakdown: await fetchProductBreakdownRows(business.id, sub.countDate),
+      bakeDate: sub.bakeDate,
+      breakdown: await fetchProductBreakdownRows(business.id, sub.bakeDate),
     })),
   );
 
   const latestRun = breakdownsByDate[0];
-  const latestRunRows: (ProductBreakdownRow & { countDate: string })[] =
-    latestRun?.breakdown?.rows.map((row) => ({ ...row, countDate: latestRun.countDate })) ?? [];
+  const latestRunRows: (ProductBreakdownRow & { bakeDate: string })[] =
+    latestRun?.breakdown?.rows.map((row) => ({ ...row, bakeDate: latestRun.bakeDate })) ?? [];
 
-  const wasteByWeek = breakdownsByDate.map(({ countDate, breakdown }) => ({
-    countDate,
+  const wasteByWeek = breakdownsByDate.map(({ bakeDate, breakdown }) => ({
+    bakeDate,
     wastePct: breakdown?.totalWastePct ?? null,
     stockoutPct: breakdown?.totalStockoutPct ?? 0,
   }));
@@ -103,7 +103,7 @@ export default async function ComparisonPage() {
               <tbody className="divide-y divide-zinc-100">
                 {latestRunRows.map((row, i) => (
                   <tr key={i}>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-zinc-500">{row.countDate}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-zinc-500">{row.bakeDate}</td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-zinc-900">{row.displayName}</td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-zinc-500">{row.batchLabel}</td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right">{row.recommendedQty ?? "—"}</td>
@@ -155,7 +155,7 @@ export default async function ComparisonPage() {
 
       <section className="mt-10">
         <h2 className="text-lg font-medium text-zinc-900">Prior Runs</h2>
-        <p className="mt-1 text-sm text-zinc-500">Click a date for the per-week breakdown.</p>
+        <p className="mt-1 text-sm text-zinc-500">Click on a date to view a more granular breakdown.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
           <table className="w-full text-xs">
             <thead className="bg-zinc-50 text-left text-[11px] uppercase tracking-wide text-zinc-500">
@@ -181,13 +181,13 @@ export default async function ComparisonPage() {
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {priorRunsRows.map((w) => (
-                <tr key={w.countDate}>
+                <tr key={w.bakeDate}>
                   <td className="whitespace-nowrap px-2 py-1.5">
                     <Link
-                      href={`/dashboard/comparison/${w.countDate}`}
+                      href={`/dashboard/comparison/${w.bakeDate}`}
                       className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-800"
                     >
-                      {w.countDate}
+                      {w.bakeDate}
                     </Link>
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">

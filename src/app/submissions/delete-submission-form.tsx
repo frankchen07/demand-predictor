@@ -7,10 +7,10 @@ type Status = "idle" | "working" | "error";
 
 export function DeleteSubmissionForm({
   submissionId,
-  countDate,
+  bakeDate,
 }: {
   submissionId: string;
-  countDate: string;
+  bakeDate: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
@@ -19,7 +19,7 @@ export function DeleteSubmissionForm({
   async function handleDelete() {
     if (
       !window.confirm(
-        `Delete the ${countDate} submission? This permanently removes its baked/waste ` +
+        `Delete the ${bakeDate} submission? This permanently removes its baked/waste ` +
           `data, photo, and any comparison history. This can't be undone.`,
       )
     ) {

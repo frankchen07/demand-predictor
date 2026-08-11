@@ -8,11 +8,11 @@ const EXTENSION_BY_TYPE: Record<string, string> = {
 };
 
 export async function POST(request: Request) {
-  const { businessSlug, countDate, contentType } = await request.json();
+  const { businessSlug, bakeDate, contentType } = await request.json();
 
-  if (typeof businessSlug !== "string" || typeof countDate !== "string") {
+  if (typeof businessSlug !== "string" || typeof bakeDate !== "string") {
     return NextResponse.json(
-      { error: "businessSlug and countDate are required" },
+      { error: "businessSlug and bakeDate are required" },
       { status: 400 },
     );
   }
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `unsupported image type: ${contentType}` }, { status: 400 });
   }
 
-  const filename = `${countDate}-${Date.now()}.${ext}`;
+  const filename = `${bakeDate}-${Date.now()}.${ext}`;
   const { signedUrl, token, path, publicUrl } = await createSignedUploadUrl(businessSlug, filename);
 
   return NextResponse.json({ signedUrl, token, path, publicUrl });

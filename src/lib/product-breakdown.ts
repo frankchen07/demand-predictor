@@ -30,12 +30,12 @@ export interface ProductBreakdownResult {
 // adjustment, so metrics are calculated off that sum, not off bakedQty alone.
 export async function fetchProductBreakdownRows(
   businessId: string,
-  countDate: string,
+  bakeDate: string,
 ): Promise<ProductBreakdownResult | null> {
   const [submission] = await db
     .select()
     .from(schema.submissions)
-    .where(and(eq(schema.submissions.businessId, businessId), eq(schema.submissions.countDate, countDate)));
+    .where(and(eq(schema.submissions.businessId, businessId), eq(schema.submissions.bakeDate, bakeDate)));
   if (!submission) return null;
 
   const businessBatchTypes = await db

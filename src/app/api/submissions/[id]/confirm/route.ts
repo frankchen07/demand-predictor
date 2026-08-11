@@ -69,7 +69,7 @@ export async function POST(
     })
     .where(eq(schema.submissions.id, id));
 
-  await populateComparisonLineItems(submission.businessId, submission.countDate, submission.id);
+  await populateComparisonLineItems(submission.businessId, submission.bakeDate, submission.id);
 
   redirect("/dashboard/comparison");
 }

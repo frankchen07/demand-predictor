@@ -40,7 +40,7 @@ export default async function SubmissionsPage() {
     .select()
     .from(schema.submissions)
     .where(eq(schema.submissions.businessId, business.id))
-    .orderBy(desc(schema.submissions.countDate));
+    .orderBy(desc(schema.submissions.bakeDate));
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 pb-24">
@@ -66,7 +66,7 @@ export default async function SubmissionsPage() {
           <tbody className="divide-y divide-zinc-100">
             {submissions.map((s) => (
               <tr key={s.id}>
-                <td className="px-3 py-2 text-zinc-900">{s.countDate}</td>
+                <td className="px-3 py-2 text-zinc-900">{s.bakeDate}</td>
                 <td className="px-3 py-2 text-zinc-500">{SOURCE_LABEL[s.source] ?? s.source}</td>
                 <td className="px-3 py-2 text-zinc-500">
                   {s.status === "confirmed" ? "Confirmed" : "Draft"}
@@ -82,7 +82,7 @@ export default async function SubmissionsPage() {
                     <AttachPhotoForm
                       submissionId={s.id}
                       businessSlug={BUSINESS_SLUG}
-                      countDate={s.countDate}
+                      bakeDate={s.bakeDate}
                     />
                   )}
                 </td>
@@ -94,7 +94,7 @@ export default async function SubmissionsPage() {
                     >
                       Review / edit
                     </Link>
-                    <DeleteSubmissionForm submissionId={s.id} countDate={s.countDate} />
+                    <DeleteSubmissionForm submissionId={s.id} bakeDate={s.bakeDate} />
                   </div>
                 </td>
               </tr>
