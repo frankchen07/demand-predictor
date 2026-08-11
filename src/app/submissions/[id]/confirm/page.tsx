@@ -93,16 +93,16 @@ export default async function ConfirmSubmissionPage({
           className="min-w-0 lg:flex-1"
         >
           <div className="overflow-x-auto rounded-lg border border-zinc-200">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[720px] text-xs">
               <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
                 <tr>
-                  <th className="px-3 py-2">Product</th>
-                  <th className="px-3 py-2">Batch</th>
-                  <th className="px-3 py-2">Baked</th>
-                  <th className="px-3 py-2">+/-</th>
-                  <th className="px-3 py-2">Sold out at</th>
-                  <th className="px-3 py-2">Unsold</th>
-                  <th className="px-3 py-2">Notes</th>
+                  <th className="px-2 py-1.5">Product</th>
+                  <th className="px-2 py-1.5">Batch</th>
+                  <th className="px-2 py-1.5">Baked</th>
+                  <th className="px-2 py-1.5">+/-</th>
+                  <th className="px-2 py-1.5">Sold out at</th>
+                  <th className="px-2 py-1.5">Unsold</th>
+                  <th className="px-2 py-1.5">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
@@ -114,62 +114,50 @@ export default async function ConfirmSubmissionPage({
                       key={item.productBatchId}
                       className={flagged ? confidenceColor(ocr.confidence) : ""}
                     >
-                      <td className="px-3 py-2 whitespace-nowrap text-zinc-900">
+                      <td className="px-2 py-1 whitespace-nowrap text-zinc-900">
                         {item.displayName}
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-zinc-500">
+                      <td className="px-2 py-1 whitespace-nowrap text-zinc-500">
                         {item.batchLabel}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1">
                         <input
                           type="number"
                           name={`bakedQty_${item.productBatchId}`}
                           defaultValue={item.bakedQty ?? ""}
-                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                          className="w-16 rounded border border-zinc-300 px-1.5 py-1"
                         />
-                        {ocr?.bakedQty != null && (
-                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.bakedQty}</p>
-                        )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1">
                         <input
                           type="number"
                           name={`adjustmentQty_${item.productBatchId}`}
                           defaultValue={item.adjustmentQty ?? ""}
-                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                          className="w-16 rounded border border-zinc-300 px-1.5 py-1"
                         />
-                        {ocr?.adjustmentQty != null && (
-                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.adjustmentQty}</p>
-                        )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1">
                         <input
                           type="time"
                           name={`timeSoldOut_${item.productBatchId}`}
                           defaultValue={item.timeSoldOut?.slice(0, 5) ?? ""}
-                          className="w-28 rounded border border-zinc-300 px-2 py-1"
+                          className="w-28 rounded border border-zinc-300 px-1.5 py-1"
                         />
-                        {ocr?.timeSoldOut != null && (
-                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.timeSoldOut}</p>
-                        )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1">
                         <input
                           type="number"
                           name={`unsoldQty_${item.productBatchId}`}
                           defaultValue={item.unsoldQty ?? ""}
-                          className="w-16 rounded border border-zinc-300 px-2 py-1"
+                          className="w-16 rounded border border-zinc-300 px-1.5 py-1"
                         />
-                        {ocr?.unsoldQty != null && (
-                          <p className="mt-0.5 text-xs text-zinc-400">OCR: {ocr.unsoldQty}</p>
-                        )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-1">
                         <input
                           type="text"
                           name={`notes_${item.productBatchId}`}
                           defaultValue={[item.notes, ocr?.notes].filter(Boolean).join(" / ")}
-                          className="w-40 rounded border border-zinc-300 px-2 py-1"
+                          className="w-40 rounded border border-zinc-300 px-1.5 py-1"
                         />
                       </td>
                     </tr>

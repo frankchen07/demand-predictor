@@ -157,23 +157,23 @@ export default async function ComparisonPage() {
         <h2 className="text-lg font-medium text-zinc-900">Prior Runs</h2>
         <p className="mt-1 text-sm text-zinc-500">Click on a date to view a more granular breakdown.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
-          <table className="w-full text-xs">
-            <thead className="bg-zinc-50 text-left text-[11px] uppercase tracking-wide text-zinc-500">
+          <table className="w-full text-sm">
+            <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
               <tr>
-                <th className="whitespace-nowrap px-2 py-1.5">Date</th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                <th className="whitespace-nowrap px-3 py-2">Date</th>
+                <th className="whitespace-nowrap px-3 py-2 text-right">
                   % waste
                   <InfoTooltip text="Unsold pieces ÷ total pieces baked that day, as a %. Lower is better — it's the number this whole tool is trying to bring down." />
                 </th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                <th className="whitespace-nowrap px-3 py-2 text-right">
                   % products sold out
                   <InfoTooltip text="% of items that sold out before closing that day. A high number means you're likely underbaking, not just running lean." />
                 </th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                <th className="whitespace-nowrap px-3 py-2 text-right">
                   Δ % waste
                   <InfoTooltip text="Change in % waste versus the prior run, in percentage points. Negative means less waste than last time." />
                 </th>
-                <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                <th className="whitespace-nowrap px-3 py-2 text-right">
                   Δ % sold out
                   <InfoTooltip text="Change in % of products sold out versus the prior run, in percentage points. Negative means fewer stockouts than last time." />
                 </th>
@@ -182,7 +182,7 @@ export default async function ComparisonPage() {
             <tbody className="divide-y divide-zinc-100">
               {priorRunsRows.map((w) => (
                 <tr key={w.bakeDate}>
-                  <td className="whitespace-nowrap px-2 py-1.5">
+                  <td className="whitespace-nowrap px-3 py-2">
                     <Link
                       href={`/dashboard/comparison/${w.bakeDate}`}
                       className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-800"
@@ -190,16 +190,16 @@ export default async function ComparisonPage() {
                       {w.bakeDate}
                     </Link>
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
+                  <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-zinc-900">
                     {w.wastePct == null ? "—" : `${w.wastePct.toFixed(1)}%`}
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right text-zinc-500">
+                  <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-500">
                     {w.stockoutPct.toFixed(0)}%
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right text-zinc-500">
+                  <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-500">
                     {formatDeltaPp(w.wasteDelta, 1)}
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right text-zinc-500">
+                  <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-500">
                     {formatDeltaPp(w.stockoutDelta, 0)}
                   </td>
                 </tr>
