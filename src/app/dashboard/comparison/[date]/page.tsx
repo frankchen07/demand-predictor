@@ -50,6 +50,12 @@ export default async function ComparisonDayPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
+      <div className="mb-6">
+        <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to data views
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-semibold text-zinc-900">{date}</h1>
       <p className="mt-1 text-sm text-zinc-500">Per-product breakdown for this count date</p>
 

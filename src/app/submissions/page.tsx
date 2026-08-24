@@ -44,6 +44,12 @@ export default async function SubmissionsPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8 pb-24">
+      <div className="mb-6">
+        <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to home
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-semibold text-zinc-900">Submission history</h1>
       <p className="mt-1 text-sm text-zinc-500">
         Every count sheet on file. Open one to review or correct it, or attach a source
@@ -105,7 +111,7 @@ export default async function SubmissionsPage() {
 
       <div className="mt-8">
         <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to dashboard
+          ← Back to home
         </Link>
       </div>
     </main>

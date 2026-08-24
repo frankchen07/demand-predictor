@@ -53,6 +53,12 @@ export default async function ComparisonPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
+      <div className="mb-6">
+        <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to home
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-semibold text-zinc-900">Data Views</h1>
 
       <section className="mt-8">
@@ -191,7 +197,7 @@ export default async function ComparisonPage() {
 
       <div className="mt-8">
         <Link href="/" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to dashboard
+          ← Back to home
         </Link>
       </div>
     </main>
