@@ -39,6 +39,12 @@ export default async function Home() {
           Data views
         </Link>
         <Link
+          href="/dashboard/trends"
+          className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
+        >
+          Trends
+        </Link>
+        <Link
           href="/submissions"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
         >

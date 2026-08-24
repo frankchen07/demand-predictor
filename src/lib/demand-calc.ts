@@ -63,11 +63,37 @@ export function quantile(sortedAsc: number[], p: number): number {
   return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
 }
 
-const STORE_OPEN_TIME = "07:00:00";
+export const STORE_OPEN_TIME = "07:00:00";
+export const STORE_CLOSE_TIME = "14:00:00";
 
-function timeToHours(time: string): number {
+export function timeToHours(time: string): number {
   const [h, m, s] = time.split(":").map(Number);
   return h + m / 60 + (s ?? 0) / 3600;
+}
+
+const FALLBACK_WINDOW_HOURS = timeToHours(STORE_CLOSE_TIME) - timeToHours(STORE_OPEN_TIME);
+
+export interface SellRateInput {
+  resolvedBakedQty: number | null;
+  unsoldQty: number | null;
+  hoursToSellOut: number | null;
+  soldOut: boolean;
+}
+
+/**
+ * When an item didn't sell out, there's no recorded sellout time to measure against —
+ * fall back to the store's open-to-close window (7am-2pm) as the denominator, and use
+ * qty actually sold (baked - unsold) rather than full baked qty, since only part of it moved.
+ */
+export function sellRatePerHour(input: SellRateInput): number | null {
+  if (input.resolvedBakedQty == null) return null;
+  if (input.soldOut) {
+    return input.hoursToSellOut != null && input.hoursToSellOut > 0
+      ? input.resolvedBakedQty / input.hoursToSellOut
+      : null;
+  }
+  const sold = Math.max(0, input.resolvedBakedQty - (input.unsoldQty ?? 0));
+  return sold / FALLBACK_WINDOW_HOURS;
 }
 
 export function formatTime(time: string): string {

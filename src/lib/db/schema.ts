@@ -92,6 +92,7 @@ export const submissionSourceValues = [
   "manual_seed",
   "photo_upload",
   "api",
+  "synthetic_fill",
 ] as const;
 export const submissionStatusValues = ["draft", "confirmed"] as const;
 
@@ -113,6 +114,10 @@ export const submissions = pgTable(
       .default("draft"),
     reviewedBy: text("reviewed_by"),
     reviewedAt: timestamp("reviewed_at"),
+    // fabricated to fill day-of-week gaps between real submissions for the trends
+    // charts only — never surfaced on the comparison tables. Purge with
+    // `delete from submissions where synthetic = true` (cascades to line items).
+    synthetic: boolean("synthetic").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

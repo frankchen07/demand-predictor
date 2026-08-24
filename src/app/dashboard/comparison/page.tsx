@@ -1,9 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { formatTime } from "@/lib/demand-calc";
-import { fetchProductBreakdownRows, type ProductBreakdownRow } from "@/lib/product-breakdown";
+import { fetchAllProductBreakdowns, type ProductBreakdownRow } from "@/lib/product-breakdown";
 import { InfoTooltip } from "@/app/info-tooltip";
 import { soldOutBadgeClass, wasteHeatStyle } from "./row-styles";
 
@@ -31,23 +31,7 @@ export default async function ComparisonPage() {
     );
   }
 
-  const confirmedSubmissions = await db
-    .select({ id: schema.submissions.id, bakeDate: schema.submissions.bakeDate })
-    .from(schema.submissions)
-    .where(
-      and(
-        eq(schema.submissions.businessId, business.id),
-        eq(schema.submissions.status, "confirmed"),
-      ),
-    )
-    .orderBy(desc(schema.submissions.bakeDate));
-
-  const breakdownsByDate = await Promise.all(
-    confirmedSubmissions.map(async (sub) => ({
-      bakeDate: sub.bakeDate,
-      breakdown: await fetchProductBreakdownRows(business.id, sub.bakeDate),
-    })),
-  );
+  const breakdownsByDate = await fetchAllProductBreakdowns(business.id);
 
   const latestRun = breakdownsByDate[0];
   const latestRunRows: (ProductBreakdownRow & { bakeDate: string })[] =
@@ -92,7 +76,7 @@ export default async function ComparisonPage() {
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out?</th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">
                     Avg sell rate
-                    <InfoTooltip text="Baked pieces ÷ hours to sell — roughly how many pieces per hour this item moved. Higher means it sold faster." />
+                    <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window." />
                   </th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">
                     Waste %
@@ -120,11 +104,7 @@ export default async function ComparisonPage() {
                       {row.soldOut ? "Yes" : "No"}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                      {row.resolvedBakedQty != null &&
-                      row.hoursToSellOut != null &&
-                      row.hoursToSellOut > 0
-                        ? `${(row.resolvedBakedQty / row.hoursToSellOut).toFixed(1)}/hr`
-                        : "—"}
+                      {row.sellRatePerHour != null ? `${row.sellRatePerHour.toFixed(1)}/hr` : "—"}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right" style={wasteHeatStyle(row.wastePct)}>
                       {row.wastePct == null ? "—" : `${row.wastePct.toFixed(1)}%`}

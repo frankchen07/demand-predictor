@@ -10,7 +10,8 @@
     "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio",
-    "db:seed": "dotenv -e .env.local -- tsx src/lib/db/seed.ts"
+    "db:seed": "dotenv -e .env.local -- tsx src/lib/db/seed.ts",
+    "db:fake-trends": "dotenv -e .env.local -- tsx src/lib/db/generate-fake-trend-data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
@@ -18,9 +19,11 @@
     "next": "16.2.12",
     "postgres": "^3.4.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

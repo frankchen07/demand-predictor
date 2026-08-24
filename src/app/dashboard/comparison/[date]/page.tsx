@@ -67,7 +67,7 @@ export default async function ComparisonDayPage({
               <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out?</th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">
                 Avg sell rate
-                <InfoTooltip text="Baked pieces ÷ hours to sell — roughly how many pieces per hour this item moved. Higher means it sold faster." />
+                <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window." />
               </th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">
                 Waste %
@@ -95,11 +95,7 @@ export default async function ComparisonDayPage({
                   {item.soldOut ? "Yes" : "No"}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                  {item.resolvedBakedQty != null &&
-                  item.hoursToSellOut != null &&
-                  item.hoursToSellOut > 0
-                    ? `${(item.resolvedBakedQty / item.hoursToSellOut).toFixed(1)}/hr`
-                    : "—"}
+                  {item.sellRatePerHour != null ? `${item.sellRatePerHour.toFixed(1)}/hr` : "—"}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1.5 text-right" style={wasteHeatStyle(item.wastePct)}>
                   {item.wastePct == null ? "—" : `${item.wastePct.toFixed(1)}%`}
