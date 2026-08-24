@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
@@ -39,7 +39,7 @@ export default async function SubmissionsPage() {
   const submissions = await db
     .select()
     .from(schema.submissions)
-    .where(eq(schema.submissions.businessId, business.id))
+    .where(and(eq(schema.submissions.businessId, business.id), eq(schema.submissions.synthetic, false)))
     .orderBy(desc(schema.submissions.bakeDate));
 
   return (
