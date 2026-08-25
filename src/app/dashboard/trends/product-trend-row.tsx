@@ -1,9 +1,27 @@
 "use client";
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import type { ProductTrendSeries } from "@/lib/trends";
+import type { TooltipContentProps } from "recharts";
+import type { ProductTrendPoint, ProductTrendSeries } from "@/lib/trends";
 
 const TARGET_LABEL_COUNT = 8;
+
+function ProductTrendTooltip({ active, payload, label }: TooltipContentProps) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload as ProductTrendPoint | undefined;
+  return (
+    <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <p className="font-medium text-zinc-900">{label}</p>
+      <p style={{ color: payload[0]?.color }}>Waste: {Number(payload[0]?.value).toFixed(1)}%</p>
+      {point && (
+        <>
+          <p className="mt-1 text-zinc-500">Total baked: {point.totalBaked}</p>
+          <p className="text-zinc-500">Total unbaked: {point.totalUnbaked}</p>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function ProductTrendRow({ series }: { series: ProductTrendSeries }) {
   const minWidth = Math.max(480, series.points.length * 24);
@@ -32,7 +50,7 @@ export function ProductTrendRow({ series }: { series: ProductTrendSeries }) {
                 domain={[0, 100]}
                 allowDataOverflow
               />
-              <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
+              <Tooltip content={ProductTrendTooltip} />
               <Line type="monotone" dataKey="wastePct" stroke="#dc2626" dot={false} connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>

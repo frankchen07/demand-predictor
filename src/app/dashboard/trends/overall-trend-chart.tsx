@@ -10,9 +10,30 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { TooltipContentProps } from "recharts";
 import type { OverallTrendPoint } from "@/lib/trends";
 
 const TARGET_LABEL_COUNT = 10;
+
+function OverallTrendTooltip({ active, payload, label }: TooltipContentProps) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload as OverallTrendPoint | undefined;
+  return (
+    <div className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs shadow-sm">
+      <p className="font-medium text-zinc-900">{label}</p>
+      {payload.map((entry) => (
+        <p key={String(entry.dataKey)} style={{ color: entry.color }}>
+          {entry.name}: {Number(entry.value).toFixed(1)}%
+        </p>
+      ))}
+      {point?.topWasteProduct && (
+        <p className="mt-1 text-zinc-500">
+          Top waste: {point.topWasteProduct.displayName} ({point.topWasteProduct.unsoldQty} u)
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function OverallTrendChart({ data }: { data: OverallTrendPoint[] }) {
   const minWidth = Math.max(640, data.length * 28);
@@ -31,8 +52,14 @@ export function OverallTrendChart({ data }: { data: OverallTrendPoint[] }) {
               height={70}
               interval={tickInterval}
             />
-            <YAxis tick={{ fontSize: 11, fill: "#71717a" }} unit="%" width={40} />
-            <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#71717a" }}
+              unit="%"
+              width={40}
+              domain={[0, 100]}
+              allowDataOverflow
+            />
+            <Tooltip content={OverallTrendTooltip} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Line
               type="monotone"

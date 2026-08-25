@@ -5,6 +5,26 @@ export interface OverallTrendPoint {
   bakeDate: string;
   wastePct: number | null;
   stockoutPct: number;
+  topWasteProduct: { displayName: string; unsoldQty: number } | null;
+}
+
+function findTopWasteProduct(
+  rows: { productId: string; displayName: string; unsoldQty: number | null }[],
+): { displayName: string; unsoldQty: number } | null {
+  const unsoldByProduct = new Map<string, { displayName: string; unsoldQty: number }>();
+  for (const row of rows) {
+    const existing = unsoldByProduct.get(row.productId);
+    const unsoldQty = (existing?.unsoldQty ?? 0) + (row.unsoldQty ?? 0);
+    unsoldByProduct.set(row.productId, { displayName: row.displayName, unsoldQty });
+  }
+
+  let top: { displayName: string; unsoldQty: number } | null = null;
+  for (const product of unsoldByProduct.values()) {
+    if (product.unsoldQty > 0 && (top == null || product.unsoldQty > top.unsoldQty)) {
+      top = product;
+    }
+  }
+  return top;
 }
 
 export async function fetchOverallTrend(businessId: string): Promise<OverallTrendPoint[]> {
@@ -13,12 +33,15 @@ export async function fetchOverallTrend(businessId: string): Promise<OverallTren
     bakeDate,
     wastePct: breakdown?.totalWastePct ?? null,
     stockoutPct: breakdown?.totalStockoutPct ?? 0,
+    topWasteProduct: breakdown ? findTopWasteProduct(breakdown.rows) : null,
   }));
 }
 
 export interface ProductTrendPoint {
   bakeDate: string;
   wastePct: number | null;
+  totalBaked: number;
+  totalUnbaked: number;
 }
 
 export interface ProductTrendSeries {
@@ -58,6 +81,8 @@ export async function fetchProductTrends(businessId: string): Promise<ProductTre
       series.points.push({
         bakeDate,
         wastePct: wasteRatePct(metricsInputs),
+        totalBaked: rows.reduce((sum, row) => sum + (row.resolvedBakedQty ?? 0), 0),
+        totalUnbaked: rows.reduce((sum, row) => sum + (row.unsoldQty ?? 0), 0),
       });
       seriesByProduct.set(productId, series);
     }
