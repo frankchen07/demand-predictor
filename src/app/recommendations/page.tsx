@@ -7,7 +7,7 @@ import { fetchAllProductBreakdowns, type ProductBreakdownRow } from "@/lib/produ
 import { fetchLatestRecommendationLineItems, getNextRecommendationDate } from "@/lib/recommendation-engine";
 import { InfoTooltip } from "@/app/info-tooltip";
 import { GenerateRecommendationForm } from "@/app/generate-recommendation-form";
-import { sellRateHeatStyle, soldOutBadgeClass, wasteHeatStyle } from "@/app/dashboard/comparison/row-styles";
+import { sellRateHeatStyle, soldOutBadgeClass, wasteHeatStyle } from "./row-styles";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -226,7 +226,7 @@ export default async function RecommendationsPage() {
                 <tr key={w.bakeDate}>
                   <td className="whitespace-nowrap px-3 py-2">
                     <Link
-                      href={`/dashboard/comparison/${w.bakeDate}`}
+                      href={`/recommendations/${w.bakeDate}`}
                       className="font-medium text-blue-600 underline underline-offset-2 hover:text-blue-800"
                     >
                       {w.bakeDate}

@@ -38,8 +38,8 @@ export default async function ComparisonDayPage({
           No submission for {date}.
         </p>
         <div className="mt-6">
-          <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
-            ← Back to data views
+          <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
+            ← Back to recommendations
           </Link>
         </div>
       </main>
@@ -52,8 +52,8 @@ export default async function ComparisonDayPage({
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <div className="mb-6">
-        <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to data views
+        <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to recommendations
         </Link>
       </div>
 
@@ -134,8 +134,8 @@ export default async function ComparisonDayPage({
       </div>
 
       <div className="mt-8">
-        <Link href="/dashboard/comparison" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to data views
+        <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to recommendations
         </Link>
       </div>
     </main>
