@@ -59,7 +59,7 @@ export default async function ProductsPage() {
               </th>
               <th className="py-2 pr-4">
                 Critical ratio
-                <InfoTooltip text="Profit from one more sale ÷ (that profit + cost of one wasted unit) — the odds of selling an extra unit that make it worth baking. E.g. 0.75 means aim to cover demand on 75% of days; running out the other 25% is fine, since each sale is worth 3x what a wasted unit costs." />
+                <InfoTooltip text="Profit from one more sale ÷ (that profit + cost of one wasted unit) — the service level to aim for, i.e. what % of days you should fully cover demand. E.g. 0.75 means bake enough to cover demand on 75% of days; running out the other 25% is fine, since each sale is worth 3x what a wasted unit costs." />
               </th>
               <th className="py-2">
                 Source
