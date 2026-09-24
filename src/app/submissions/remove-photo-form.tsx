@@ -3,15 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Status = "idle" | "working" | "error";
+type Status = "idle" | "confirming" | "working" | "error";
 
 export function RemovePhotoForm({ submissionId }: { submissionId: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  async function handleRemove() {
-    if (!window.confirm("Delete this submission's photo? This can't be undone.")) return;
+  async function handleConfirmRemove() {
     setError(null);
 
     try {
@@ -30,17 +29,39 @@ export function RemovePhotoForm({ submissionId }: { submissionId: string }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
-        <span>Yes</span>
+      {status === "confirming" ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-zinc-600">Delete this submission&apos;s photo? This can&apos;t be undone.</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleConfirmRemove}
+              className="text-xs font-medium text-red-600 hover:underline"
+            >
+              Yes, remove
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStatus("idle");
+                setError(null);
+              }}
+              className="text-xs font-medium text-zinc-600 hover:underline"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
         <button
           type="button"
-          onClick={handleRemove}
+          onClick={() => setStatus("confirming")}
           disabled={status === "working"}
           className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
         >
           {status === "working" ? "Removing…" : "Remove"}
         </button>
-      </div>
+      )}
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
   );

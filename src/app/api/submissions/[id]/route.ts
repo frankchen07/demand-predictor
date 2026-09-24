@@ -15,7 +15,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (submission.photoUrl) {
     try {
       await deletePhoto(submission.photoUrl);
-    } catch {
+    } catch (err) {
+      console.error(`Failed to delete photo from storage for submission ${id}:`, err);
       return NextResponse.json({ error: "could not delete photo from storage" }, { status: 500 });
     }
   }
