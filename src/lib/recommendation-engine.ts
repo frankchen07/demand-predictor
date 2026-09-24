@@ -25,6 +25,10 @@ export const FALLBACK_CRITICAL_RATIO =
 // Buffer used when there's fewer than 2 demand samples — not enough spread to measure
 // a real quantile from, so fall back to a flat percentage of the center estimate.
 const FALLBACK_BUFFER_PCT = 0.2;
+// Below this many confirmed bake weeks, don't claim a calibration verdict either way.
+const MIN_WEEKS_FOR_CALIBRATION = 1;
+// How far actual stockout rate can drift from target before it's flagged as under/overbaking.
+const CALIBRATION_TOLERANCE = 0.1;
 // Guardrail so one noisy week can't dominate the growth-rate estimate on a small sample.
 const MAX_GROWTH_RATE = 0.3;
 const METHOD = "newsvendor_v1";
@@ -288,6 +292,69 @@ export async function fetchLatestRecommendationLineItems(
     .orderBy(schema.products.displayName, schema.batchTypes.sequence);
 
   return rows.map((r) => ({ ...r, confidence: parseFloat(r.confidence) }));
+}
+
+export type CalibrationStatus = "insufficient_data" | "underbaking" | "overbaking" | "on_target";
+
+export function classifyCalibration(
+  actualStockoutRate: number,
+  targetStockoutRate: number,
+  weeksOfData: number,
+): CalibrationStatus {
+  if (weeksOfData < MIN_WEEKS_FOR_CALIBRATION) return "insufficient_data";
+  const delta = actualStockoutRate - targetStockoutRate;
+  if (delta > CALIBRATION_TOLERANCE) return "underbaking";
+  if (delta < -CALIBRATION_TOLERANCE) return "overbaking";
+  return "on_target";
+}
+
+export interface CalibrationRow {
+  productBatchId: string;
+  displayName: string;
+  batchLabel: string;
+  batchSequence: number;
+  weeksOfData: number;
+  targetStockoutRate: number;
+  actualStockoutRate: number;
+  status: CalibrationStatus;
+}
+
+// Actual vs. target stockout rate per product batch — reveals criticalRatio-derived
+// margin info via targetStockoutRate, so only render this on an owner-gated surface
+// (see /products), same restriction as RecommendationResult.reasoning above.
+export async function fetchCalibrationRows(businessId: string): Promise<CalibrationRow[]> {
+  const productBatches = await db
+    .select({
+      id: schema.productBatches.id,
+      displayName: schema.products.displayName,
+      batchLabel: schema.batchTypes.label,
+      batchSequence: schema.batchTypes.sequence,
+    })
+    .from(schema.productBatches)
+    .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
+    .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
+    .where(and(eq(schema.products.businessId, businessId), eq(schema.products.active, true)))
+    .orderBy(schema.products.displayName, schema.batchTypes.sequence);
+
+  const rows: CalibrationRow[] = [];
+  for (const pb of productBatches) {
+    const result = await computeRecommendationForProductBatch(pb.id, businessId);
+    if (!result) continue;
+    const targetStockoutRate = 1 - result.reasoning.criticalRatio;
+    const actualStockoutRate = result.reasoning.stockoutRate;
+    rows.push({
+      productBatchId: pb.id,
+      displayName: pb.displayName,
+      batchLabel: pb.batchLabel,
+      batchSequence: pb.batchSequence,
+      weeksOfData: result.reasoning.weeksOfData,
+      targetStockoutRate,
+      actualStockoutRate,
+      status: classifyCalibration(actualStockoutRate, targetStockoutRate, result.reasoning.weeksOfData),
+    });
+  }
+
+  return rows;
 }
 
 export async function computeRecommendationsForBusiness(
