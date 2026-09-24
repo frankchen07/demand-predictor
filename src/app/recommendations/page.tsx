@@ -4,10 +4,10 @@ import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { formatTime } from "@/lib/demand-calc";
 import { fetchAllProductBreakdowns, type ProductBreakdownRow } from "@/lib/product-breakdown";
-import { getNextRecommendationDate } from "@/lib/recommendation-engine";
+import { fetchLatestRecommendationLineItems, getNextRecommendationDate } from "@/lib/recommendation-engine";
 import { InfoTooltip } from "@/app/info-tooltip";
 import { GenerateRecommendationForm } from "@/app/generate-recommendation-form";
-import { soldOutBadgeClass, wasteHeatStyle } from "./row-styles";
+import { sellRateHeatStyle, soldOutBadgeClass, wasteHeatStyle } from "@/app/dashboard/comparison/row-styles";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -19,7 +19,7 @@ function formatDeltaPp(delta: number | null, digits: number): string {
   return `${sign}${delta.toFixed(digits)} pp`;
 }
 
-export default async function ComparisonPage() {
+export default async function RecommendationsPage() {
   const [business] = await db
     .select()
     .from(schema.businesses)
@@ -44,19 +44,20 @@ export default async function ComparisonPage() {
       ),
     );
 
-  const breakdownsByDate = await fetchAllProductBreakdowns(business.id);
+  const suggestedRows = await fetchLatestRecommendationLineItems(business.id, nextRecommendationDate);
 
+  const breakdownsByDate = await fetchAllProductBreakdowns(business.id);
   const latestRun = breakdownsByDate[0];
   const latestRunRows: (ProductBreakdownRow & { bakeDate: string })[] =
     latestRun?.breakdown?.rows.map((row) => ({ ...row, bakeDate: latestRun.bakeDate })) ?? [];
+  const maxSellRate = Math.max(0, ...latestRunRows.map((r) => r.sellRatePerHour ?? 0));
 
   const wasteByWeek = breakdownsByDate.map(({ bakeDate, breakdown }) => ({
     bakeDate,
     wastePct: breakdown?.totalWastePct ?? null,
     stockoutPct: breakdown?.totalStockoutPct ?? 0,
   }));
-
-  const priorRunsRows = wasteByWeek.map((w, i) => {
+  const historyRows = wasteByWeek.map((w, i) => {
     const prev = wasteByWeek[i + 1];
     const wasteDelta =
       prev && w.wastePct != null && prev.wastePct != null ? w.wastePct - prev.wastePct : null;
@@ -72,17 +73,46 @@ export default async function ComparisonPage() {
         </Link>
       </div>
 
-      <h1 className="text-2xl font-semibold text-zinc-900">Data Views</h1>
+      <h1 className="text-2xl font-semibold text-zinc-900">Recommendations</h1>
 
-      <section className="mt-6 flex flex-col items-start gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-zinc-600">
-          Next recommendation date: <span className="font-medium text-zinc-900">{nextRecommendationDate}</span>
-        </p>
+      <div className="mt-4">
         <GenerateRecommendationForm businessSlug={BUSINESS_SLUG} hasExisting={!!existingRecommendation} />
-      </section>
+      </div>
 
       <section className="mt-8">
-        <h2 className="text-lg font-medium text-zinc-900">Latest Run</h2>
+        <h2 className="text-lg font-medium text-zinc-900">Suggested next bake</h2>
+        {suggestedRows.length === 0 ? (
+          <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
+            No recommendation generated yet for {nextRecommendationDate}.
+          </p>
+        ) : (
+          <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2">Product</th>
+                  <th className="whitespace-nowrap px-3 py-2">Batch</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right">Suggested qty</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {suggestedRows.map((row) => (
+                  <tr key={row.productBatchId}>
+                    <td className="whitespace-nowrap px-3 py-2 text-zinc-900">{row.displayName}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-zinc-500">{row.batchLabel}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-zinc-900">
+                      {row.suggestedBakeQty}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-lg font-medium text-zinc-900">Last uploaded bake day breakdown</h2>
         {latestRunRows.length === 0 ? (
           <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
             No confirmed submissions yet.
@@ -95,18 +125,21 @@ export default async function ComparisonPage() {
                   <th className="whitespace-nowrap px-2 py-1.5">Date</th>
                   <th className="whitespace-nowrap px-2 py-1.5">Product</th>
                   <th className="whitespace-nowrap px-2 py-1.5">Batch</th>
-                  <th className="whitespace-nowrap px-2 py-1.5 text-right">Recommended</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 text-right">Planned</th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">+/-</th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out at</th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">Unsold</th>
-                  <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out?</th>
+                  <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                    Sold out?
+                    <InfoTooltip text="Green = sold out before closing. Red = still had stock when the day ended." />
+                  </th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">
                     Avg sell rate
-                    <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window." />
+                    <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window. Color ranks it against the fastest seller that day: green = fastest, red = slowest." />
                   </th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">
                     Waste %
-                    <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
+                    <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %. Green = low waste, red = high waste." />
                   </th>
                 </tr>
               </thead>
@@ -129,7 +162,10 @@ export default async function ComparisonPage() {
                     <td className={`whitespace-nowrap px-2 py-1.5 text-right ${soldOutBadgeClass(row.soldOut)}`}>
                       {row.soldOut ? "Yes" : "No"}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                    <td
+                      className="whitespace-nowrap px-2 py-1.5 text-right"
+                      style={sellRateHeatStyle(row.sellRatePerHour, maxSellRate)}
+                    >
                       {row.sellRatePerHour != null ? `${row.sellRatePerHour.toFixed(1)}/hr` : "—"}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right" style={wasteHeatStyle(row.wastePct)}>
@@ -160,7 +196,7 @@ export default async function ComparisonPage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-medium text-zinc-900">Prior Runs</h2>
+        <h2 className="text-lg font-medium text-zinc-900">History</h2>
         <p className="mt-1 text-sm text-zinc-500">Click on a date to view a more granular breakdown.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
           <table className="w-full text-sm">
@@ -186,7 +222,7 @@ export default async function ComparisonPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {priorRunsRows.map((w) => (
+              {historyRows.map((w) => (
                 <tr key={w.bakeDate}>
                   <td className="whitespace-nowrap px-3 py-2">
                     <Link

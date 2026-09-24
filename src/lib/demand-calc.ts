@@ -63,6 +63,23 @@ export function quantile(sortedAsc: number[], p: number): number {
   return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
 }
 
+/**
+ * Newsvendor critical ratio Cu/(Cu+Co) for a single item, where Cu = margin lost on a
+ * missed sale (price - cost) and Co = cost of a wasted unit (cost). Simplifies to
+ * 1 - cost/price. Falls back to a flat ratio whenever price/cost isn't entered yet, or
+ * cost >= price (bad data) would otherwise drive the ratio to zero/negative.
+ */
+export function computeCriticalRatio(
+  unitPrice: number | null,
+  unitCost: number | null,
+  fallbackRatio: number,
+): { ratio: number; source: "item" | "fallback" } {
+  if (unitPrice == null || unitCost == null || unitCost <= 0 || unitCost >= unitPrice) {
+    return { ratio: fallbackRatio, source: "fallback" };
+  }
+  return { ratio: 1 - unitCost / unitPrice, source: "item" };
+}
+
 export const STORE_OPEN_TIME = "07:00:00";
 export const STORE_CLOSE_TIME = "14:00:00";
 

@@ -27,5 +27,5 @@ export async function POST(request: Request) {
   const recommendationDate = await getNextRecommendationDate(business.id);
   await computeRecommendationsForBusiness(business.id, recommendationDate);
 
-  redirect("/");
+  redirect("/recommendations");
 }

@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
+import { OWNER_COOKIE_NAME } from "@/proxy";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -12,6 +14,11 @@ export default async function Home() {
     .select()
     .from(schema.businesses)
     .where(eq(schema.businesses.slug, BUSINESS_SLUG));
+
+  // Only surface the pricing/cost link once someone's already proven owner access —
+  // no point advertising it to whoever's just here to upload today's bake counts.
+  const cookieStore = await cookies();
+  const isOwner = cookieStore.get(OWNER_COOKIE_NAME)?.value === process.env.APP_OWNER_PASSPHRASE;
 
   if (!business) {
     return (
@@ -33,23 +40,25 @@ export default async function Home() {
           Upload today&apos;s bakery data
         </Link>
         <Link
-          href="/dashboard/comparison"
-          className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
-        >
-          Data views
-        </Link>
-        <Link
-          href="/dashboard/trends"
-          className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
-        >
-          Trends
-        </Link>
-        <Link
           href="/submissions"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
         >
           Submission history
         </Link>
+        <Link
+          href="/recommendations"
+          className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
+        >
+          Recommendations
+        </Link>
+        {isOwner && (
+          <Link
+            href="/products"
+            className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
+          >
+            Pricing &amp; cost
+          </Link>
+        )}
       </div>
     </main>
   );

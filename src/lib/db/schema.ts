@@ -32,6 +32,10 @@ export const products = pgTable(
     sku: text("sku").notNull(),
     displayName: text("display_name").notNull(),
     category: text("category"),
+    // per-unit economics for prime-cost / item-profit metrics; null until a real
+    // pricing/cost source is wired up
+    unitPrice: numeric("unit_price", { precision: 8, scale: 2 }),
+    unitCost: numeric("unit_cost", { precision: 8, scale: 2 }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -87,6 +91,26 @@ export const countDays = pgTable("count_days", {
   dayOfWeek: integer("day_of_week").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// day-level prime-cost inputs (net sales, labor), for whenever a POS/labor
+// source gets wired up. Deliberately separate from `submissions` — that table's
+// status/reviewedBy/ocrRawJson lifecycle belongs to the bake-count photo flow,
+// which isn't where sales/labor figures would come from.
+export const dailyFinancials = pgTable(
+  "daily_financials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    businessId: uuid("business_id")
+      .notNull()
+      .references(() => businesses.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    netSales: numeric("net_sales", { precision: 10, scale: 2 }),
+    laborCost: numeric("labor_cost", { precision: 10, scale: 2 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.businessId, t.date)],
+);
 
 export const submissionSourceValues = [
   "manual_seed",

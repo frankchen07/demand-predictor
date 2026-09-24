@@ -1,7 +1,13 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { estimateDemand, quantile, stockoutRate, type DemandInput } from "./demand-calc";
+import {
+  computeCriticalRatio,
+  estimateDemand,
+  quantile,
+  stockoutRate,
+  type DemandInput,
+} from "./demand-calc";
 
 // Cap on how far back we pull demand samples. ~10 weeks of real history exist today;
 // this is a comfortable ceiling above that, not a claim we have a year of seasonality —
@@ -10,11 +16,11 @@ const MAX_HISTORY_WEEKS = 12;
 // Short-term center of mass — unchanged from the original weighted rolling average.
 const TREND_WINDOW_WEEKS = 3;
 const RECENT_WEIGHTS = [0.5, 0.3, 0.2]; // most recent week first
-// Business assumption: a stockout (lost sale + annoyed customer) costs ~2x a wasted
-// unit. Global default for now — revisit per-item once there's a feel for which items
-// have meaningfully different margins.
+// Fallback assumption when an item has no priced unitPrice/unitCost yet: a stockout
+// (lost sale + annoyed customer) costs ~2x a wasted unit. Used until real per-item
+// economics are entered — see computeCriticalRatio in demand-calc.ts.
 const STOCKOUT_TO_WASTE_COST_RATIO = 2;
-const CRITICAL_RATIO =
+export const FALLBACK_CRITICAL_RATIO =
   STOCKOUT_TO_WASTE_COST_RATIO / (STOCKOUT_TO_WASTE_COST_RATIO + 1);
 // Buffer used when there's fewer than 2 demand samples — not enough spread to measure
 // a real quantile from, so fall back to a flat percentage of the center estimate.
@@ -27,6 +33,10 @@ export interface RecommendationResult {
   productBatchId: string;
   suggestedBakeQty: number;
   confidence: number;
+  // criticalRatio below reveals exact margin (1 - cost/price) whenever criticalRatioSource
+  // is "item" — this whole object is written via /api/recommendations/compute, which is only
+  // base-passphrase-gated. If a "why this recommendation" UI ever renders `reasoning`, route
+  // it through the owner-gated surface (see /products), not anything base-passphrase reachable.
   reasoning: {
     projectedDemand: number;
     growthRatePct: number;
@@ -35,15 +45,22 @@ export interface RecommendationResult {
     bufferQty: number;
     bufferSource: "historical" | "fallback";
     criticalRatio: number;
+    criticalRatioSource: "item" | "fallback";
   };
 }
 
 async function fetchDemandHistory(productBatchId: string, businessId: string) {
-  const [productBatch] = await db
-    .select()
+  const [productBatchRow] = await db
+    .select({
+      productBatch: schema.productBatches,
+      unitPrice: schema.products.unitPrice,
+      unitCost: schema.products.unitCost,
+    })
     .from(schema.productBatches)
+    .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
     .where(eq(schema.productBatches.id, productBatchId));
-  if (!productBatch) return null;
+  if (!productBatchRow) return null;
+  const { productBatch, unitPrice, unitCost } = productBatchRow;
 
   const rows = await db
     .select({
@@ -81,7 +98,13 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
     .map((d) => estimateDemand(d, stockoutFactor))
     .filter((d): d is number => d != null);
 
-  return { rows, demandInputs, demands, stockoutFactor };
+  const criticalRatio = computeCriticalRatio(
+    unitPrice != null ? parseFloat(unitPrice) : null,
+    unitCost != null ? parseFloat(unitCost) : null,
+    FALLBACK_CRITICAL_RATIO,
+  );
+
+  return { rows, demandInputs, demands, stockoutFactor, criticalRatio };
 }
 
 // demands is most-recent-first; averages the % change between each consecutive pair.
@@ -112,7 +135,7 @@ export async function computeRecommendationForProductBatch(
 ): Promise<RecommendationResult | null> {
   const history = await fetchDemandHistory(productBatchId, businessId);
   if (!history) return null;
-  const { rows, demandInputs, demands } = history;
+  const { rows, demandInputs, demands, criticalRatio } = history;
 
   if (rows.length === 0) {
     return {
@@ -126,7 +149,8 @@ export async function computeRecommendationForProductBatch(
         stockoutRate: 0,
         bufferQty: 0,
         bufferSource: "fallback",
-        criticalRatio: CRITICAL_RATIO,
+        criticalRatio: criticalRatio.ratio,
+        criticalRatioSource: criticalRatio.source,
       },
     };
   }
@@ -143,7 +167,8 @@ export async function computeRecommendationForProductBatch(
         stockoutRate: 0,
         bufferQty: 0,
         bufferSource: "fallback",
-        criticalRatio: CRITICAL_RATIO,
+        criticalRatio: criticalRatio.ratio,
+        criticalRatioSource: criticalRatio.source,
       },
     };
   }
@@ -168,7 +193,7 @@ export async function computeRecommendationForProductBatch(
   } else {
     const mean = demands.reduce((a, b) => a + b, 0) / demands.length;
     const deviations = demands.map((d) => d - mean).sort((a, b) => a - b);
-    bufferQty = Math.max(0, quantile(deviations, CRITICAL_RATIO));
+    bufferQty = Math.max(0, quantile(deviations, criticalRatio.ratio));
     bufferSource = "historical";
   }
 
@@ -189,7 +214,8 @@ export async function computeRecommendationForProductBatch(
       stockoutRate: Math.round(rate * 100) / 100,
       bufferQty: Math.round(bufferQty * 100) / 100,
       bufferSource,
-      criticalRatio: CRITICAL_RATIO,
+      criticalRatio: criticalRatio.ratio,
+      criticalRatioSource: criticalRatio.source,
     },
   };
 }
@@ -212,6 +238,56 @@ export async function getNextRecommendationDate(
   const base = latest ? new Date(latest.bakeDate) : new Date();
   base.setDate(base.getDate() + 7);
   return base.toISOString().slice(0, 10);
+}
+
+export interface RecommendationLineItemRow {
+  productBatchId: string;
+  displayName: string;
+  batchLabel: string;
+  batchSequence: number;
+  suggestedBakeQty: number;
+  confidence: number;
+}
+
+// Intentionally returns only suggestedBakeQty/confidence, never `reasoning` — this
+// feeds the base-passphrase-reachable Recommendations tab, and reasoning.criticalRatio
+// reveals exact margin when sourced from real pricing (see the warning on
+// RecommendationResult.reasoning above).
+export async function fetchLatestRecommendationLineItems(
+  businessId: string,
+  recommendationDate: string,
+): Promise<RecommendationLineItemRow[]> {
+  const [recommendation] = await db
+    .select({ id: schema.recommendations.id })
+    .from(schema.recommendations)
+    .where(
+      and(
+        eq(schema.recommendations.businessId, businessId),
+        eq(schema.recommendations.recommendationDate, recommendationDate),
+      ),
+    );
+  if (!recommendation) return [];
+
+  const rows = await db
+    .select({
+      productBatchId: schema.recommendationLineItems.productBatchId,
+      suggestedBakeQty: schema.recommendationLineItems.suggestedBakeQty,
+      confidence: schema.recommendationLineItems.confidence,
+      displayName: schema.products.displayName,
+      batchLabel: schema.batchTypes.label,
+      batchSequence: schema.batchTypes.sequence,
+    })
+    .from(schema.recommendationLineItems)
+    .innerJoin(
+      schema.productBatches,
+      eq(schema.recommendationLineItems.productBatchId, schema.productBatches.id),
+    )
+    .innerJoin(schema.products, eq(schema.productBatches.productId, schema.products.id))
+    .innerJoin(schema.batchTypes, eq(schema.productBatches.batchTypeId, schema.batchTypes.id))
+    .where(eq(schema.recommendationLineItems.recommendationId, recommendation.id))
+    .orderBy(schema.products.displayName, schema.batchTypes.sequence);
+
+  return rows.map((r) => ({ ...r, confidence: parseFloat(r.confidence) }));
 }
 
 export async function computeRecommendationsForBusiness(

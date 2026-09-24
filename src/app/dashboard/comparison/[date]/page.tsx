@@ -5,7 +5,7 @@ import * as schema from "@/lib/db/schema";
 import { formatTime } from "@/lib/demand-calc";
 import { fetchProductBreakdownRows } from "@/lib/product-breakdown";
 import { InfoTooltip } from "@/app/info-tooltip";
-import { soldOutBadgeClass, wasteHeatStyle } from "../row-styles";
+import { sellRateHeatStyle, soldOutBadgeClass, wasteHeatStyle } from "../row-styles";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -47,6 +47,7 @@ export default async function ComparisonDayPage({
   }
 
   const { rows, totalWastePct, totalStockoutPct } = breakdown;
+  const maxSellRate = Math.max(0, ...rows.map((r) => r.sellRatePerHour ?? 0));
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
@@ -70,14 +71,17 @@ export default async function ComparisonDayPage({
               <th className="whitespace-nowrap px-2 py-1.5 text-right">+/-</th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out at</th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">Unsold</th>
-              <th className="whitespace-nowrap px-2 py-1.5 text-right">Sold out?</th>
+              <th className="whitespace-nowrap px-2 py-1.5 text-right">
+                Sold out?
+                <InfoTooltip text="Green = sold out before closing. Red = still had stock when the day ended." />
+              </th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">
                 Avg sell rate
-                <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window." />
+                <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window. Color ranks it against the fastest seller that day: green = fastest, red = slowest." />
               </th>
               <th className="whitespace-nowrap px-2 py-1.5 text-right">
                 Waste %
-                <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %." />
+                <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %. Green = low waste, red = high waste." />
               </th>
             </tr>
           </thead>
@@ -100,7 +104,10 @@ export default async function ComparisonDayPage({
                 <td className={`whitespace-nowrap px-2 py-1.5 text-right ${soldOutBadgeClass(item.soldOut)}`}>
                   {item.soldOut ? "Yes" : "No"}
                 </td>
-                <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                <td
+                  className="whitespace-nowrap px-2 py-1.5 text-right"
+                  style={sellRateHeatStyle(item.sellRatePerHour, maxSellRate)}
+                >
                   {item.sellRatePerHour != null ? `${item.sellRatePerHour.toFixed(1)}/hr` : "—"}
                 </td>
                 <td className="whitespace-nowrap px-2 py-1.5 text-right" style={wasteHeatStyle(item.wastePct)}>

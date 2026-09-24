@@ -12,3 +12,13 @@ export function wasteHeatStyle(pct: number | null): CSSProperties | undefined {
   const hue = 142 - (142 * clamped) / 100;
   return { backgroundColor: `hsl(${hue.toFixed(0)}, 70%, 85%)` };
 }
+
+// Red (slowest) to green (fastest), normalized against the highest sell rate
+// in the same table — so it's relative to that day's own items, not a fixed
+// universal rate. Same hue math as wasteHeatStyle, just inverted (high = green).
+export function sellRateHeatStyle(rate: number | null, maxRate: number): CSSProperties | undefined {
+  if (rate == null || maxRate <= 0) return undefined;
+  const normalized = Math.max(0, Math.min(1, rate / maxRate));
+  const hue = 142 * normalized;
+  return { backgroundColor: `hsl(${hue.toFixed(0)}, 70%, 85%)` };
+}
