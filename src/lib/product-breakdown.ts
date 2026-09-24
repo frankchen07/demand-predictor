@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { didStockOut, wasteRatePct, stockoutRate, withHoursToSellOut, sellRatePerHour } from "./demand-calc";
+import { didStockOut, wasteRatePct, stockoutRate, withHoursToSellOut } from "./demand-calc";
 
 export interface ProductBreakdownRow {
   productBatchId: string;
@@ -17,7 +17,6 @@ export interface ProductBreakdownRow {
   hoursToSellOut: number | null;
   wastePct: number | null;
   soldOut: boolean;
-  sellRatePerHour: number | null;
 }
 
 export interface ProductBreakdownResult {
@@ -109,12 +108,6 @@ export async function fetchProductBreakdownRows(
       hoursToSellOut: item.hoursToSellOut,
       wastePct,
       soldOut,
-      sellRatePerHour: sellRatePerHour({
-        resolvedBakedQty,
-        unsoldQty: item.unsoldQty,
-        hoursToSellOut: item.hoursToSellOut,
-        soldOut,
-      }),
     };
   });
 

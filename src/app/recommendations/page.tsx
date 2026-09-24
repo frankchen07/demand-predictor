@@ -7,7 +7,7 @@ import { fetchAllProductBreakdowns, type ProductBreakdownRow } from "@/lib/produ
 import { fetchLatestRecommendationLineItems, getNextRecommendationDate } from "@/lib/recommendation-engine";
 import { InfoTooltip } from "@/app/info-tooltip";
 import { GenerateRecommendationForm } from "@/app/generate-recommendation-form";
-import { sellRateHeatStyle, soldOutBadgeClass, wasteHeatStyle } from "./row-styles";
+import { soldOutBadgeClass, wasteHeatStyle } from "./row-styles";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
@@ -50,8 +50,6 @@ export default async function RecommendationsPage() {
   const latestRun = breakdownsByDate[0];
   const latestRunRows: (ProductBreakdownRow & { bakeDate: string })[] =
     latestRun?.breakdown?.rows.map((row) => ({ ...row, bakeDate: latestRun.bakeDate })) ?? [];
-  const maxSellRate = Math.max(0, ...latestRunRows.map((r) => r.sellRatePerHour ?? 0));
-
   const wasteByWeek = breakdownsByDate.map(({ bakeDate, breakdown }) => ({
     bakeDate,
     wastePct: breakdown?.totalWastePct ?? null,
@@ -134,10 +132,6 @@ export default async function RecommendationsPage() {
                     <InfoTooltip text="Green = sold out before closing. Red = still had stock when the day ended." />
                   </th>
                   <th className="whitespace-nowrap px-2 py-1.5 text-right">
-                    Avg sell rate
-                    <InfoTooltip text="Pieces sold ÷ hours on sale. If it sold out, hours run from open (or the prior batch's sellout) to when it sold out. Otherwise hours default to the 7am-2pm window. Color ranks it against the fastest seller that day: green = fastest, red = slowest." />
-                  </th>
-                  <th className="whitespace-nowrap px-2 py-1.5 text-right">
                     Waste %
                     <InfoTooltip text="Unsold pieces ÷ pieces baked for this item, as a %. Green = low waste, red = high waste." />
                   </th>
@@ -162,12 +156,6 @@ export default async function RecommendationsPage() {
                     <td className={`whitespace-nowrap px-2 py-1.5 text-right ${soldOutBadgeClass(row.soldOut)}`}>
                       {row.soldOut ? "Yes" : "No"}
                     </td>
-                    <td
-                      className="whitespace-nowrap px-2 py-1.5 text-right"
-                      style={sellRateHeatStyle(row.sellRatePerHour, maxSellRate)}
-                    >
-                      {row.sellRatePerHour != null ? `${row.sellRatePerHour.toFixed(1)}/hr` : "—"}
-                    </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right" style={wasteHeatStyle(row.wastePct)}>
                       {row.wastePct == null ? "—" : `${row.wastePct.toFixed(1)}%`}
                     </td>
@@ -182,7 +170,6 @@ export default async function RecommendationsPage() {
                   <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
                     {(latestRun?.breakdown?.totalStockoutPct ?? 0).toFixed(0)}%
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5"></td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
                     {latestRun?.breakdown?.totalWastePct == null
                       ? "—"
