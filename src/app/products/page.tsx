@@ -3,42 +3,12 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { computeCriticalRatio } from "@/lib/demand-calc";
-import {
-  FALLBACK_CRITICAL_RATIO,
-  fetchCalibrationRows,
-  type CalibrationStatus,
-} from "@/lib/recommendation-engine";
+import { FALLBACK_CRITICAL_RATIO } from "@/lib/recommendation-engine";
 import { InfoTooltip } from "@/app/info-tooltip";
 
 const BUSINESS_SLUG = "midwife-and-baker";
 
 export const dynamic = "force-dynamic";
-
-function calibrationBadgeClass(status: CalibrationStatus): string {
-  switch (status) {
-    case "on_target":
-      return "bg-green-100 text-green-800";
-    case "underbaking":
-      return "bg-red-100 text-red-800";
-    case "overbaking":
-      return "bg-amber-100 text-amber-800";
-    case "insufficient_data":
-      return "bg-zinc-100 text-zinc-600";
-  }
-}
-
-function calibrationLabel(status: CalibrationStatus): string {
-  switch (status) {
-    case "on_target":
-      return "On target";
-    case "underbaking":
-      return "Underbaking";
-    case "overbaking":
-      return "Overbaking";
-    case "insufficient_data":
-      return "Not enough data yet";
-  }
-}
 
 export default async function ProductsPage() {
   const [business] = await db
@@ -59,8 +29,6 @@ export default async function ProductsPage() {
     .from(schema.products)
     .where(eq(schema.products.businessId, business.id))
     .orderBy(schema.products.displayName);
-
-  const calibrationRows = await fetchCalibrationRows(business.id);
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 pb-24">
@@ -127,61 +95,6 @@ export default async function ProductsPage() {
                 </tr>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-
-      <h2 className="mt-10 text-xl font-semibold text-zinc-900">Calibration</h2>
-      <p className="mt-1 text-sm text-zinc-500">
-        How the actual stockout rate compares to each product batch&apos;s target — over
-        enough bake-days, they should converge.
-      </p>
-
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full min-w-[560px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500">
-              <th className="py-2 pr-4">Product</th>
-              <th className="py-2 pr-4">Batch</th>
-              <th className="py-2 pr-4">
-                Weeks of data
-                <InfoTooltip text="Confirmed bake days used to compute the actual rate below, capped at 12." />
-              </th>
-              <th className="py-2 pr-4">
-                Target stockout %
-                <InfoTooltip text="1 − critical ratio. The % of days this batch is expected to sell out under the newsvendor plan." />
-              </th>
-              <th className="py-2 pr-4">
-                Actual stockout %
-                <InfoTooltip text="% of confirmed bake days this batch actually sold out, over the same history window used for recommendations." />
-              </th>
-              <th className="py-2">
-                Status
-                <InfoTooltip text="On target = within 10 percentage points of the target. Underbaking = stocking out more than planned. Overbaking = stocking out less than planned, likely wasting margin." />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {calibrationRows.map((row) => (
-              <tr key={row.productBatchId} className="border-b border-zinc-100">
-                <td className="py-2 pr-4 text-zinc-900">{row.displayName}</td>
-                <td className="py-2 pr-4 text-zinc-500">{row.batchLabel}</td>
-                <td className="py-2 pr-4 text-zinc-600">{row.weeksOfData}</td>
-                <td className="py-2 pr-4 text-zinc-600">
-                  {(row.targetStockoutRate * 100).toFixed(0)}%
-                </td>
-                <td className="py-2 pr-4 text-zinc-600">
-                  {(row.actualStockoutRate * 100).toFixed(0)}%
-                </td>
-                <td className="py-2">
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs font-medium ${calibrationBadgeClass(row.status)}`}
-                  >
-                    {calibrationLabel(row.status)}
-                  </span>
-                </td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>

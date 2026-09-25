@@ -29,7 +29,7 @@ async function main() {
       `weeksOfData=${result.reasoning.weeksOfData}`.padEnd(14),
       `projectedDemand=${result.reasoning.projectedDemand}`.padEnd(20),
       `growthRatePct=${result.reasoning.growthRatePct}`.padEnd(18),
-      `stockoutRate=${result.reasoning.stockoutRate}`.padEnd(16),
+      `sellOutRate=${result.reasoning.sellOutRate}`.padEnd(16),
       `buffer=${result.reasoning.bufferQty}(${result.reasoning.bufferSource})`,
     );
   }

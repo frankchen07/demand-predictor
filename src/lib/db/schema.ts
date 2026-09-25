@@ -71,7 +71,7 @@ export const productBatches = pgTable(
       .notNull()
       .references(() => batchTypes.id, { onDelete: "cascade" }),
     // knob for the censored-demand rule: estimated_demand = baked_qty * (1 + factor) when sold out
-    stockoutAdjustmentFactor: numeric("stockout_adjustment_factor", {
+    sellOutAdjustmentFactor: numeric("stockout_adjustment_factor", {
       precision: 4,
       scale: 2,
     })
@@ -218,7 +218,7 @@ export const metricsCache = pgTable(
     rollingAvg3wk: numeric("rolling_avg_3wk", { precision: 8, scale: 2 }),
     rollingAvg8wk: numeric("rolling_avg_8wk", { precision: 8, scale: 2 }),
     wasteRatePct3wk: numeric("waste_rate_pct_3wk", { precision: 5, scale: 2 }),
-    stockoutRate3wk: numeric("stockout_rate_3wk", { precision: 5, scale: 2 }),
+    sellOutRate3wk: numeric("stockout_rate_3wk", { precision: 5, scale: 2 }),
     trendDirection: text("trend_direction", {
       enum: ["increasing", "stable", "decreasing"],
     }),

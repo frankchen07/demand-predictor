@@ -7,19 +7,19 @@ export interface DemandInput {
 
 /**
  * Censored-demand rule: if the item sold out before close, true demand exceeded
- * what was baked (unknown by how much), so we scale up by stockoutAdjustmentFactor
+ * what was baked (unknown by how much), so we scale up by sellOutAdjustmentFactor
  * rather than undercounting via baked - unsold. Returns null when baked_qty itself
  * wasn't recorded (item not offered that day) — there's no demand signal to use.
  */
 export function estimateDemand(
   input: DemandInput,
-  stockoutAdjustmentFactor: number,
+  sellOutAdjustmentFactor: number,
 ): number | null {
   if (input.bakedQty == null) return null;
 
   let estimated: number;
   if (input.timeSoldOut != null) {
-    estimated = input.bakedQty * (1 + stockoutAdjustmentFactor);
+    estimated = input.bakedQty * (1 + sellOutAdjustmentFactor);
   } else if (input.unsoldQty != null) {
     // unsold can exceed baked when leftovers get logged against a 0-baked topup
     // row instead of the batch that actually produced them — demand is never negative
@@ -31,14 +31,14 @@ export function estimateDemand(
   return Math.max(0, estimated + (input.adjustmentQty ?? 0));
 }
 
-export function didStockOut(input: DemandInput): boolean {
+export function didSellOut(input: DemandInput): boolean {
   return input.timeSoldOut != null;
 }
 
-export function stockoutRate(inputs: DemandInput[]): number {
+export function sellOutRate(inputs: DemandInput[]): number {
   const withBaked = inputs.filter((i) => i.bakedQty != null);
   if (withBaked.length === 0) return 0;
-  return withBaked.filter(didStockOut).length / withBaked.length;
+  return withBaked.filter(didSellOut).length / withBaked.length;
 }
 
 export function wasteRatePct(inputs: DemandInput[]): number | null {

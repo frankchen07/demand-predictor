@@ -38,21 +38,21 @@ export default async function ComparisonDayPage({
           No submission for {date}.
         </p>
         <div className="mt-6">
-          <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
-            ← Back to recommendations
+          <Link href="/data" className="text-sm font-medium text-zinc-700 hover:underline">
+            ← Back to data
           </Link>
         </div>
       </main>
     );
   }
 
-  const { rows, totalWastePct, totalStockoutPct } = breakdown;
+  const { rows, totalWastePct, totalSellOutPct } = breakdown;
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 pb-24">
       <div className="mb-6">
-        <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to recommendations
+        <Link href="/data" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to data
         </Link>
       </div>
 
@@ -111,7 +111,7 @@ export default async function ComparisonDayPage({
                 Total
               </td>
               <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
-                {totalStockoutPct.toFixed(0)}%
+                {totalSellOutPct.toFixed(0)}%
               </td>
               <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium text-zinc-900">
                 {totalWastePct == null ? "—" : `${totalWastePct.toFixed(1)}%`}
@@ -122,8 +122,8 @@ export default async function ComparisonDayPage({
       </div>
 
       <div className="mt-8">
-        <Link href="/recommendations" className="text-sm font-medium text-zinc-700 hover:underline">
-          ← Back to recommendations
+        <Link href="/data" className="text-sm font-medium text-zinc-700 hover:underline">
+          ← Back to data
         </Link>
       </div>
     </main>

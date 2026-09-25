@@ -71,5 +71,5 @@ export async function POST(
 
   await populateComparisonLineItems(submission.businessId, submission.bakeDate, submission.id);
 
-  redirect("/recommendations");
+  redirect("/data");
 }

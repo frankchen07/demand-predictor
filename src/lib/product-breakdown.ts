@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { didStockOut, wasteRatePct, stockoutRate, withHoursToSellOut } from "./demand-calc";
+import { didSellOut, wasteRatePct, sellOutRate, withHoursToSellOut } from "./demand-calc";
 
 export interface ProductBreakdownRow {
   productBatchId: string;
@@ -22,7 +22,7 @@ export interface ProductBreakdownRow {
 export interface ProductBreakdownResult {
   rows: ProductBreakdownRow[];
   totalWastePct: number | null;
-  totalStockoutPct: number;
+  totalSellOutPct: number;
 }
 
 // "Recommended" is submissionLineItems.bakedQty — the number OCR'd straight off the
@@ -93,7 +93,7 @@ export async function fetchProductBreakdownRows(
       resolvedBakedQty != null && resolvedBakedQty > 0
         ? ((item.unsoldQty ?? 0) / resolvedBakedQty) * 100
         : null;
-    const soldOut = didStockOut({ ...item, bakedQty: resolvedBakedQty });
+    const soldOut = didSellOut({ ...item, bakedQty: resolvedBakedQty });
     return {
       productBatchId: item.productBatchId,
       productId: item.productId,
@@ -121,7 +121,7 @@ export async function fetchProductBreakdownRows(
   return {
     rows,
     totalWastePct: wasteRatePct(metricsInputs),
-    totalStockoutPct: stockoutRate(metricsInputs) * 100,
+    totalSellOutPct: sellOutRate(metricsInputs) * 100,
   };
 }
 

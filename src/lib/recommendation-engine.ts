@@ -5,7 +5,7 @@ import {
   computeCriticalRatio,
   estimateDemand,
   quantile,
-  stockoutRate,
+  sellOutRate,
   type DemandInput,
 } from "./demand-calc";
 
@@ -16,40 +16,53 @@ const MAX_HISTORY_WEEKS = 12;
 // Short-term center of mass — unchanged from the original weighted rolling average.
 const TREND_WINDOW_WEEKS = 3;
 const RECENT_WEIGHTS = [0.5, 0.3, 0.2]; // most recent week first
-// Fallback assumption when an item has no priced unitPrice/unitCost yet: a stockout
+// Fallback assumption when an item has no priced unitPrice/unitCost yet: selling out
 // (lost sale + annoyed customer) costs ~2x a wasted unit. Used until real per-item
 // economics are entered — see computeCriticalRatio in demand-calc.ts.
-const STOCKOUT_TO_WASTE_COST_RATIO = 2;
+const SELLOUT_TO_WASTE_COST_RATIO = 2;
 export const FALLBACK_CRITICAL_RATIO =
-  STOCKOUT_TO_WASTE_COST_RATIO / (STOCKOUT_TO_WASTE_COST_RATIO + 1);
+  SELLOUT_TO_WASTE_COST_RATIO / (SELLOUT_TO_WASTE_COST_RATIO + 1);
 // Buffer used when there's fewer than 2 demand samples — not enough spread to measure
 // a real quantile from, so fall back to a flat percentage of the center estimate.
 const FALLBACK_BUFFER_PCT = 0.2;
 // Below this many confirmed bake weeks, don't claim a calibration verdict either way.
 const MIN_WEEKS_FOR_CALIBRATION = 1;
-// How far actual stockout rate can drift from target before it's flagged as under/overbaking.
+// How far actual sell-out rate can drift from target before it's flagged as under/overbaking.
 const CALIBRATION_TOLERANCE = 0.1;
 // Guardrail so one noisy week can't dominate the growth-rate estimate on a small sample.
 const MAX_GROWTH_RATE = 0.3;
+// Fraction of the observed calibration gap (actual vs. target sell-out rate) fed back
+// into the buffer calculation as a correction.
+const CALIBRATION_FEEDBACK_WEIGHT = 0.5;
+// Caps how many ratio-points a single regeneration can shift the target, so one noisy
+// week (or a product with only 1-2 weeks of data) can't wildly swing the recommendation.
+const MAX_CALIBRATION_ADJUSTMENT = 0.15;
 const METHOD = "newsvendor_v1";
 
 export interface RecommendationResult {
   productBatchId: string;
   suggestedBakeQty: number;
   confidence: number;
-  // criticalRatio below reveals exact margin (1 - cost/price) whenever criticalRatioSource
-  // is "item" — this whole object is written via /api/recommendations/compute, which is only
-  // base-passphrase-gated. If a "why this recommendation" UI ever renders `reasoning`, route
-  // it through the owner-gated surface (see /products), not anything base-passphrase reachable.
+  // criticalRatio/sellOutRate below are intentionally shown on the shared /data page
+  // (Calibration section) — that's a deliberate decision, even though targetSellOutRate
+  // (1 - criticalRatio) is mathematically identical to cost/price. The remaining raw
+  // internals here (bufferQty, bufferSource, appliedCriticalRatio, calibrationAdjustment)
+  // are NOT shown anywhere — if a "why this recommendation" UI ever renders them, route
+  // it through the owner-gated surface (see /products), not the shared /recommendations tab.
   reasoning: {
     projectedDemand: number;
     growthRatePct: number;
     weeksOfData: number;
-    stockoutRate: number;
+    sellOutRate: number;
     bufferQty: number;
     bufferSource: "historical" | "fallback";
     criticalRatio: number;
     criticalRatioSource: "item" | "fallback";
+    // The ratio actually used for the buffer's quantile lookup, after the calibration
+    // feedback nudge below — differs from criticalRatio once there's enough history.
+    appliedCriticalRatio: number;
+    // Signed ratio-point shift applied to get from criticalRatio to appliedCriticalRatio.
+    calibrationAdjustment: number;
   };
 }
 
@@ -89,7 +102,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
     .orderBy(desc(schema.submissions.bakeDate))
     .limit(MAX_HISTORY_WEEKS);
 
-  const stockoutFactor = parseFloat(productBatch.stockoutAdjustmentFactor);
+  const sellOutFactor = parseFloat(productBatch.sellOutAdjustmentFactor);
   const demandInputs: DemandInput[] = rows.map((r) => ({
     bakedQty: r.bakedQty,
     adjustmentQty: r.adjustmentQty,
@@ -99,7 +112,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
 
   // most-recent-first, matching rows' order (desc by bakeDate)
   const demands = demandInputs
-    .map((d) => estimateDemand(d, stockoutFactor))
+    .map((d) => estimateDemand(d, sellOutFactor))
     .filter((d): d is number => d != null);
 
   const criticalRatio = computeCriticalRatio(
@@ -108,7 +121,7 @@ async function fetchDemandHistory(productBatchId: string, businessId: string) {
     FALLBACK_CRITICAL_RATIO,
   );
 
-  return { rows, demandInputs, demands, stockoutFactor, criticalRatio };
+  return { rows, demandInputs, demands, sellOutFactor, criticalRatio };
 }
 
 // demands is most-recent-first; averages the % change between each consecutive pair.
@@ -150,11 +163,13 @@ export async function computeRecommendationForProductBatch(
         projectedDemand: 0,
         growthRatePct: 0,
         weeksOfData: 0,
-        stockoutRate: 0,
+        sellOutRate: 0,
         bufferQty: 0,
         bufferSource: "fallback",
         criticalRatio: criticalRatio.ratio,
         criticalRatioSource: criticalRatio.source,
+        appliedCriticalRatio: criticalRatio.ratio,
+        calibrationAdjustment: 0,
       },
     };
   }
@@ -168,11 +183,13 @@ export async function computeRecommendationForProductBatch(
         projectedDemand: 0,
         growthRatePct: 0,
         weeksOfData: rows.length,
-        stockoutRate: 0,
+        sellOutRate: 0,
         bufferQty: 0,
         bufferSource: "fallback",
         criticalRatio: criticalRatio.ratio,
         criticalRatioSource: criticalRatio.source,
+        appliedCriticalRatio: criticalRatio.ratio,
+        calibrationAdjustment: 0,
       },
     };
   }
@@ -187,7 +204,19 @@ export async function computeRecommendationForProductBatch(
   const { clampedGrowthRatePct: growthRatePct } = computeGrowth(demands);
   const projectedDemand = shortTermCenter * (1 + growthRatePct);
 
-  const rate = stockoutRate(demandInputs);
+  const rate = sellOutRate(demandInputs);
+
+  // Feed observed calibration drift back into the buffer target: if actual sell-outs
+  // are running above target (underbaking), nudge the ratio up so the buffer grows;
+  // if below target (overbaking), nudge it down. Capped so a small/noisy sample can't
+  // swing the recommendation too far in one regeneration.
+  const targetSellOutRate = 1 - criticalRatio.ratio;
+  const calibrationGap = rate - targetSellOutRate;
+  const calibrationAdjustment = Math.max(
+    -MAX_CALIBRATION_ADJUSTMENT,
+    Math.min(MAX_CALIBRATION_ADJUSTMENT, calibrationGap * CALIBRATION_FEEDBACK_WEIGHT),
+  );
+  const appliedCriticalRatio = Math.max(0.05, Math.min(0.98, criticalRatio.ratio + calibrationAdjustment));
 
   let bufferQty: number;
   let bufferSource: "historical" | "fallback";
@@ -197,7 +226,7 @@ export async function computeRecommendationForProductBatch(
   } else {
     const mean = demands.reduce((a, b) => a + b, 0) / demands.length;
     const deviations = demands.map((d) => d - mean).sort((a, b) => a - b);
-    bufferQty = Math.max(0, quantile(deviations, criticalRatio.ratio));
+    bufferQty = Math.max(0, quantile(deviations, appliedCriticalRatio));
     bufferSource = "historical";
   }
 
@@ -215,11 +244,13 @@ export async function computeRecommendationForProductBatch(
       projectedDemand: Math.round(projectedDemand * 100) / 100,
       growthRatePct: Math.round(growthRatePct * 10000) / 100,
       weeksOfData: rows.length,
-      stockoutRate: Math.round(rate * 100) / 100,
+      sellOutRate: Math.round(rate * 100) / 100,
       bufferQty: Math.round(bufferQty * 100) / 100,
       bufferSource,
       criticalRatio: criticalRatio.ratio,
       criticalRatioSource: criticalRatio.source,
+      appliedCriticalRatio: Math.round(appliedCriticalRatio * 100) / 100,
+      calibrationAdjustment: Math.round(calibrationAdjustment * 100) / 100,
     },
   };
 }
@@ -297,12 +328,12 @@ export async function fetchLatestRecommendationLineItems(
 export type CalibrationStatus = "insufficient_data" | "underbaking" | "overbaking" | "on_target";
 
 export function classifyCalibration(
-  actualStockoutRate: number,
-  targetStockoutRate: number,
+  actualSellOutRate: number,
+  targetSellOutRate: number,
   weeksOfData: number,
 ): CalibrationStatus {
   if (weeksOfData < MIN_WEEKS_FOR_CALIBRATION) return "insufficient_data";
-  const delta = actualStockoutRate - targetStockoutRate;
+  const delta = actualSellOutRate - targetSellOutRate;
   if (delta > CALIBRATION_TOLERANCE) return "underbaking";
   if (delta < -CALIBRATION_TOLERANCE) return "overbaking";
   return "on_target";
@@ -314,14 +345,16 @@ export interface CalibrationRow {
   batchLabel: string;
   batchSequence: number;
   weeksOfData: number;
-  targetStockoutRate: number;
-  actualStockoutRate: number;
+  targetSellOutRate: number;
+  actualSellOutRate: number;
   status: CalibrationStatus;
 }
 
-// Actual vs. target stockout rate per product batch — reveals criticalRatio-derived
-// margin info via targetStockoutRate, so only render this on an owner-gated surface
-// (see /products), same restriction as RecommendationResult.reasoning above.
+// Actual vs. target sell-out rate per product batch. targetSellOutRate is
+// mathematically identical to cost/price, so this does reveal margin info — that's an
+// intentional decision (see /data's Calibration section) so the person baking can plan
+// around it, not an oversight. Don't add anything beyond these four fields to whatever
+// consumes this without reconsidering that tradeoff.
 export async function fetchCalibrationRows(businessId: string): Promise<CalibrationRow[]> {
   const productBatches = await db
     .select({
@@ -340,17 +373,17 @@ export async function fetchCalibrationRows(businessId: string): Promise<Calibrat
   for (const pb of productBatches) {
     const result = await computeRecommendationForProductBatch(pb.id, businessId);
     if (!result) continue;
-    const targetStockoutRate = 1 - result.reasoning.criticalRatio;
-    const actualStockoutRate = result.reasoning.stockoutRate;
+    const targetSellOutRate = 1 - result.reasoning.criticalRatio;
+    const actualSellOutRate = result.reasoning.sellOutRate;
     rows.push({
       productBatchId: pb.id,
       displayName: pb.displayName,
       batchLabel: pb.batchLabel,
       batchSequence: pb.batchSequence,
       weeksOfData: result.reasoning.weeksOfData,
-      targetStockoutRate,
-      actualStockoutRate,
-      status: classifyCalibration(actualStockoutRate, targetStockoutRate, result.reasoning.weeksOfData),
+      targetSellOutRate,
+      actualSellOutRate,
+      status: classifyCalibration(actualSellOutRate, targetSellOutRate, result.reasoning.weeksOfData),
     });
   }
 
