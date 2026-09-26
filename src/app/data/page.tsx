@@ -46,10 +46,10 @@ export default async function DataAndCalibrationPage() {
         </Link>
       </div>
 
-      <h1 className="text-2xl font-semibold text-zinc-900">Data and Calibration</h1>
+      <h1 className="text-2xl font-semibold text-zinc-900">Data & Calibration</h1>
 
       <section className="mt-8">
-        <h2 className="text-lg font-medium text-zinc-900">Last uploaded bake day breakdown</h2>
+        <h2 className="text-lg font-medium text-zinc-900">Last Uploaded Bake Day</h2>
         {latestRunRows.length === 0 ? (
           <p className="mt-3 rounded-md bg-zinc-100 p-4 text-sm text-zinc-600">
             No confirmed submissions yet.
@@ -185,7 +185,7 @@ export default async function DataAndCalibrationPage() {
 
       <section className="mt-10">
         <h2 className="text-lg font-medium text-zinc-900">History</h2>
-        <p className="mt-1 text-sm text-zinc-500">Click on a date to view a more granular breakdown.</p>
+        <p className="mt-1 text-sm text-zinc-500">Click on a date to view bake day data.</p>
         <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">

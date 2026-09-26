@@ -37,19 +37,19 @@ export default async function Home() {
           href="/submissions/upload"
           className="flex w-full items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:w-auto"
         >
-          Upload today&apos;s bakery data
+          Upload Data
         </Link>
         <Link
           href="/submissions"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
         >
-          Submission history
+          Submission History
         </Link>
         <Link
           href="/data"
           className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
         >
-          Data and Calibration
+          Data &amp; Calibration
         </Link>
         <Link
           href="/recommendations"
@@ -62,7 +62,7 @@ export default async function Home() {
             href="/products"
             className="flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
           >
-            Pricing &amp; cost
+            Pricing &amp; Cost
           </Link>
         )}
       </div>
