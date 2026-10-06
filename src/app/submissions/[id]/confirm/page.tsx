@@ -4,12 +4,6 @@ import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import type { OcrLineItem } from "@/lib/vision-ocr";
 
-function confidenceColor(confidence: number) {
-  if (confidence >= 70) return "bg-green-100 text-green-800";
-  if (confidence >= 40) return "bg-yellow-100 text-yellow-800";
-  return "bg-red-100 text-red-800";
-}
-
 export default async function ConfirmSubmissionPage({
   params,
 }: {
@@ -112,7 +106,7 @@ export default async function ConfirmSubmissionPage({
                   return (
                     <tr
                       key={item.productBatchId}
-                      className={flagged ? confidenceColor(ocr.confidence) : ""}
+                      className={flagged ? "bg-yellow-100 text-yellow-800" : ""}
                     >
                       <td className="px-2 py-1 whitespace-nowrap text-zinc-900">
                         {item.displayName}
